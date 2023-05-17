@@ -1,0 +1,34 @@
+name: flux-kustomize-action
+description: Build kustomize overlay with support for flux resources including HelmReleases
+
+inputs:
+  paths:
+    description: "Comma separated paths to kustomize"
+    required: true
+    default: "."
+  workers:
+    description: "Concurrent helm template workers"
+    required: false
+    default: "1"
+  fail-fast:
+    description: "Abort early if any error occurs"
+    required: false
+    default: "false"
+  allow-failure:
+    description: "Specify if the action should fail if any errors occurs."
+    required: false
+    default: "false"
+  cache-dir:
+    description: "Path where artifacts may be stored"
+    required: false
+  registry-credentials:
+    description: ''
+    required: false
+
+outputs:
+  manifestFiles:
+    description: "Comma separated paths to the built manifests containing all resources (per path input)"
+
+runs:
+  using: 'docker'
+  image: 'docker://ghcr.io/doodlescheduling/flux-kustomize-action:v1'
