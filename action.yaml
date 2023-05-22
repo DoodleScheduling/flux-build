@@ -31,4 +31,4 @@ outputs:
 
 runs:
   using: 'docker'
-  image: 'docker://ghcr.io/doodlescheduling/flux-kustomize-action:v1'
+  image: 'docker://ghcr.io/doodlescheduling/flux-kustomize-action:v0'
