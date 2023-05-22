@@ -1,18 +1,18 @@
 project_name: flux-kustomize-action
 
 builds:
-- id: package-retention
-  binary: package-retention
+- id: flux-kustomize-action
+  binary: flux-kustomize-action
   goos:
   - linux
   env:
   - CGO_ENABLED=0
 
 archives:
-- id: package-retention
-  name_template: "package-retention_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
+- id: flux-kustomize-action
+  name_template: "flux-kustomize-action_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
   builds:
-  - package-retention
+  - flux-kustomize-action
 
 checksum:
   name_template: 'checksums.txt'
@@ -36,7 +36,7 @@ dockers:
   dockerfile: Dockerfile
   use: buildx
   ids:
-  - package-retention
+  - flux-kustomize-action
   build_flag_templates:
   - --platform=linux/amd64
   - --label=org.opencontainers.image.title={{ .ProjectName }}
@@ -53,7 +53,7 @@ dockers:
   dockerfile: Dockerfile
   use: buildx
   ids:
-  - package-retention
+  - flux-kustomize-action
   build_flag_templates:
   - --platform=linux/arm64/v8
   - --label=org.opencontainers.image.title={{ .ProjectName }}
