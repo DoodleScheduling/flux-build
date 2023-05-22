@@ -58,7 +58,7 @@ jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-      - uses: doodlescheduling/flux-kustomize-action@v1
+      - uses: doodlescheduling/flux-kustomize-action@v0
         with:
           paths: /staging,/production
 ```
@@ -75,7 +75,7 @@ jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-      - uses: doodlescheduling/flux-kustomize-action@v1
+      - uses: doodlescheduling/flux-kustomize-action@v0
         id: kustomize
         with:
           paths: /staging,/production
