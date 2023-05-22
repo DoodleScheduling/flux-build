@@ -143,11 +143,6 @@ func (h *Helm) Build(ctx context.Context, r *resource.Resource, kustomize *Kusto
 		return nil, err
 	}
 
-	//fmt.Printf("\n\n%#v", chartBuild)
-	//fmt.Printf("\n\nMANIFEST %#v", release.Manifest)
-	//out = append(out, []byte(release.Manifest)...)
-	//	}
-
 	return []byte(release.Manifest), nil
 }
 
@@ -210,7 +205,7 @@ func (h *Helm) renderRelease(hr helmv1.HelmRelease, values chartutil.Values, b *
 		return nil, err
 	}
 
-	return client.RunWithContext(context.TODO(), chart, chart.Values)
+	return client.RunWithContext(context.TODO(), chart, values)
 }
 
 // composeValues attempts to resolve all v2beta1.ValuesReference resources
@@ -236,7 +231,7 @@ func (h *Helm) composeValues(ctx context.Context, kustomize *Kustomize, hr helmv
 			res, ok := kustomize.resources[lookupRef]
 			if !ok {
 				if !v.Optional {
-					return nil, fmt.Errorf("could not find values configmap `%s/%v` for helmrelease `%s/%s`", lookupRef, hr.GetNamespace(), v.Name, hr.GetNamespace(), hr.GetName())
+					return nil, fmt.Errorf("could not find values configmap `%s/%v` for helmrelease `%s/%s`", hr.GetNamespace(), v.Name, hr.GetNamespace(), hr.GetName())
 				} else {
 					continue
 				}

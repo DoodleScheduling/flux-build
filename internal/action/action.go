@@ -100,7 +100,7 @@ func (a *Action) Run(ctx context.Context) error {
 			})
 
 			if err := k.Build(ctx); err != nil {
-				a.Action.Errorf("failed build kustomization: %w", err.Error())
+				a.Action.Errorf("failed build kustomization: %s", err.Error())
 				if a.FailFast {
 					cancel()
 				}
@@ -122,7 +122,7 @@ func (a *Action) Run(ctx context.Context) error {
 
 						_, err := k.Write(manifest)
 						if err != nil {
-							a.Action.Errorf("failed to write helm manifests to output: %w", err.Error())
+							a.Action.Errorf("failed to write helm manifests to output: %s", err.Error())
 							if a.FailFast {
 								cancel()
 							}
@@ -144,7 +144,7 @@ func (a *Action) Run(ctx context.Context) error {
 
 					manifest, err := helmBuilder.Build(ctx, res, k)
 					if err != nil {
-						a.Action.Errorf("failed build helmrelease: %w", err.Error())
+						a.Action.Errorf("failed build helmrelease: %s", err.Error())
 						if a.FailFast {
 							cancel()
 						}

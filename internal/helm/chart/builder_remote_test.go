@@ -33,8 +33,8 @@ import (
 	helmgetter "helm.sh/helm/v3/pkg/getter"
 	"helm.sh/helm/v3/pkg/registry"
 
-	"github.com/fluxcd/source-controller/internal/helm/chart/secureloader"
-	"github.com/fluxcd/source-controller/internal/helm/repository"
+	"github.com/doodlescheduling/flux-kustomize-action/internal/helm/chart/secureloader"
+	"github.com/doodlescheduling/flux-kustomize-action/internal/helm/repository"
 )
 
 type mockRegistryClient struct {

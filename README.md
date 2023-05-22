@@ -80,33 +80,50 @@ jobs:
         with:
           paths: /staging,/production
       - name: Setup kubeconform
-        shell: bash
         run: |
-          curl -L -v https://github.com/yannh/kubeconform/releases/download/v0.6.1/kubeconform-linux-amd64.tar.gz -o kubeconform.tgz
+          curl -L -v --fail https://github.com/yannh/kubeconform/releases/download/v0.6.1/kubeconform-linux-amd64.tar.gz -o kubeconform.tgz
           tar xvzf kubeconform.tgz
           sudo mv kubeconform /usr/bin/
+      - name: Setup openapi2jsonschema
+        run: |
+          curl -L -v --fail https://raw.githubusercontent.com/yannh/kubeconform/v0.6.2/scripts/openapi2jsonschema.py -o openapi2jsonschema.py
+          sudo mv openapi2jsonschema.py /usr/bin/openapi2jsonschema
+          sudo chmod +x /usr/bin/openapi2jsonschema
       - name: Convert CRD to json schemas
-        shell: bash
         env:
           MANIFESTS: "${{ steps.kustomize.outputs.manifestPaths }}"
         run: |
-          git clone https://github.com/yannh/kubeconform
           for m in ${MANIFESTS//,/ }; do
+            echo "openapi2jsonschema $m"
             mkdir "$m.schemas"
-            cat $m | yq -e 'select(.kind == "CustomResourceDefinition")' > $m.schemeas/crds.yaml
-            kubeconform/scripts/openapi2jsonschema.py $m.schemeas/$l.yaml
+            cat $m | yq -e 'select(.kind == "CustomResourceDefinition")' > $m.schemas/crds.yaml
+            openapi2jsonschema $m.schemas/*.yaml
           done
-          rm -rf kubeconform
       - name: Run conform
         env: 
-          KUBERNETES_VERSION: "1.26"
+          KUBERNETES_VERSION: "1.26.0"
           MANIFESTS: "${{ steps.kustomize.outputs.manifestPaths }}"
         run: |
           for m in ${MANIFESTS//,/ }; do
-            kubeconform -verbose -kubernetes-version $KUBERNETES_VERSION -schema-location default -schema-location "$m.schemas/{{ .ResourceKind }}_{{ .ResourceAPIVersion }}.json" --ignore-missing-schemas --strict
-
-            mkdir "$m.schemeas"
-            cat $m | yq -e 'select(.kind == "CustomResourceDefinition")' > $m.schemeas/crds.yaml
-            kubeconform/scripts/openapi2jsonschema.py $m.schemeas/$l.yaml
+            echo "kubeconform $m"
+            cat $m | kubeconform -verbose -kubernetes-version $KUBERNETES_VERSION -schema-location default -schema-location "$m.schemas/{{ .ResourceKind }}_{{ .ResourceAPIVersion }}.json" --strict
+          done
+      - name: Setup kyverno
+        run: |
+          curl -LO --fail https://github.com/kyverno/kyverno/releases/download/v1.7.2/kyverno-cli_v1.7.2_linux_x86_64.tar.gz
+          tar -xvf kyverno-cli_v1.7.2_linux_x86_64.tar.gz
+          sudo cp kyverno /usr/local/bin/
+      - name: Test kyverno policies
+        run: |
+          for m in ${MANIFESTS//,/ }; do
+            echo "kyverno apply $m"
+            kyverno apply base/cluster-policies -r $m
           done
 ```
+
+## License notice
+
+Many internal packages have been cloned from [source-controller](https://github.com/fluxcd/source-controller) and [helm-controller](https://github.com/fluxcd/helm-controller) to achive the same functionilty for this
+action as at controller runtime.
+
+Please see upstream [license](https://github.com/fluxcd/source-controller/blob/main/LICENSE).
