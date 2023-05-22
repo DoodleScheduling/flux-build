@@ -28,9 +28,9 @@ import (
 	sourcev1beta2 "github.com/fluxcd/source-controller/api/v1beta2"
 	"github.com/google/go-containerregistry/pkg/authn"
 	"github.com/google/go-containerregistry/pkg/name"
-	"helm.sh/helm/pkg/chartutil"
 	helmaction "helm.sh/helm/v3/pkg/action"
 	"helm.sh/helm/v3/pkg/chart/loader"
+	"helm.sh/helm/v3/pkg/chartutil"
 	helmgetter "helm.sh/helm/v3/pkg/getter"
 	"helm.sh/helm/v3/pkg/postrender"
 	helmreg "helm.sh/helm/v3/pkg/registry"
@@ -47,11 +47,12 @@ import (
 )
 
 type HelmOpts struct {
-	FailFast bool
-	CacheDir string
-	Getters  helmgetter.Providers
-	timeout  time.Duration
-	Decoder  runtime.Decoder
+	FailFast    bool
+	CacheDir    string
+	KubeVersion *chartutil.KubeVersion
+	Getters     helmgetter.Providers
+	timeout     time.Duration
+	Decoder     runtime.Decoder
 }
 
 type Helm struct {
@@ -206,6 +207,7 @@ func (h *Helm) renderRelease(ctx context.Context, hr helmv1.HelmRelease, values 
 	client.Namespace = hr.GetReleaseNamespace()
 	client.DryRun = true
 	client.IncludeCRDs = true
+	client.KubeVersion = h.opts.KubeVersion
 	client.ClientOnly = true
 	client.Timeout = hr.Spec.GetInstall().GetTimeout(hr.GetTimeout()).Duration
 	client.DisableHooks = hr.Spec.GetInstall().DisableHooks

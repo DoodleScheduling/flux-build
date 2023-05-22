@@ -11,6 +11,7 @@ import (
 	"github.com/doodlescheduling/flux-kustomize-action/internal/worker"
 	helmv1 "github.com/fluxcd/helm-controller/api/v2beta1"
 	"github.com/sethvargo/go-githubactions"
+	"helm.sh/helm/v3/pkg/chartutil"
 )
 
 type Action struct {
@@ -19,6 +20,7 @@ type Action struct {
 	Workers      int
 	CacheDir     string
 	Paths        []string
+	KubeVersion  *chartutil.KubeVersion
 	Action       *githubactions.Action
 	Logger       *log.Logger
 }
@@ -53,11 +55,27 @@ func NewFromInputs(ctx context.Context, action *githubactions.Action) (*Action, 
 		}
 	}
 
+	kubeVersion := &chartutil.KubeVersion{
+		Major:   "1",
+		Minor:   "27",
+		Version: "1.27.0",
+	}
+
+	if githubactions.GetInput("kube-version") != "" {
+		v, err := chartutil.ParseKubeVersion(githubactions.GetInput("kube-version"))
+		if err != nil {
+			return nil, err
+		}
+
+		kubeVersion = v
+	}
+
 	a := Action{
 		FailFast:     failFast,
 		AllowFailure: allowFailure,
 		Workers:      workers,
 		CacheDir:     githubactions.GetInput("cache-dir"),
+		KubeVersion:  kubeVersion,
 		Paths:        strings.Split(paths, ","),
 		Action:       action,
 		Logger:       log.New(os.Stdout, "", 0),
@@ -89,7 +107,9 @@ func (a *Action) Run(ctx context.Context) error {
 	).Start(ctx)
 
 	manifests := make(chan []byte, len(a.Paths))
-	helmBuilder := build.NewHelmBuilder(build.HelmOpts{})
+	helmBuilder := build.NewHelmBuilder(build.HelmOpts{
+		KubeVersion: a.KubeVersion,
+	})
 
 	for _, path := range a.Paths {
 		p := path
@@ -100,7 +120,7 @@ func (a *Action) Run(ctx context.Context) error {
 			})
 
 			if err := k.Build(ctx); err != nil {
-				a.Action.Errorf("failed build kustomization: %s", err.Error())
+				a.Action.Errorf("failed build kustomization `%s`: %s", p, err.Error())
 				if a.FailFast {
 					cancel()
 				}
@@ -144,7 +164,7 @@ func (a *Action) Run(ctx context.Context) error {
 
 					manifest, err := helmBuilder.Build(ctx, res, k)
 					if err != nil {
-						a.Action.Errorf("failed build helmrelease: %s", err.Error())
+						a.Action.Errorf("failed build helmrelease `%s/%s`: %s", res.GetNamespace(), res.GetName(), err.Error())
 						if a.FailFast {
 							cancel()
 						}

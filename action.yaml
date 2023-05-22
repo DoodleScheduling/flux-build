@@ -24,6 +24,10 @@ inputs:
   registry-credentials:
     description: ''
     required: false
+  kube-version:
+    description: "Kubernetes version to test against. (Required for some helm charts which validate the kubernetes version)"
+    required: false
+    default: "1.27.0"
 
 outputs:
   manifestFiles:

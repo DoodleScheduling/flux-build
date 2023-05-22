@@ -41,6 +41,10 @@ cache-dir:
 registry-credentials:
   description: ''
   required: false
+kube-version:
+  description: "Kubernetes version to test against. (Required for some helm charts which validate the kubernetes version)"
+  required: false
+  default: "1.27.0"
 ```
 
 ### Outputs
@@ -58,9 +62,9 @@ jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-      - uses: doodlescheduling/flux-kustomize-action@v0
+      - uses: docker://ghcr.io/doodlescheduling/flux-kustomize-action:v0
         with:
-          paths: /staging,/production
+          paths: ./staging,./production
 ```
 
 
