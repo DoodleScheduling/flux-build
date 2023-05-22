@@ -75,10 +75,10 @@ jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-      - uses: doodlescheduling/flux-kustomize-action@v0
+      - uses: docker://ghcr.io/doodlescheduling/flux-kustomize-action:v0
         id: kustomize
         with:
-          paths: /staging,/production
+          paths: ./staging,./production
       - name: Setup kubeconform
         run: |
           curl -L -v --fail https://github.com/yannh/kubeconform/releases/download/v0.6.1/kubeconform-linux-amd64.tar.gz -o kubeconform.tgz
@@ -101,7 +101,7 @@ jobs:
           done
       - name: Run conform
         env: 
-          KUBERNETES_VERSION: "1.26.0"
+          KUBERNETES_VERSION: "1.27.0"
           MANIFESTS: "${{ steps.kustomize.outputs.manifestPaths }}"
         run: |
           for m in ${MANIFESTS//,/ }; do
@@ -117,7 +117,7 @@ jobs:
         run: |
           for m in ${MANIFESTS//,/ }; do
             echo "kyverno apply $m"
-            kyverno apply base/cluster-policies -r $m
+            kyverno apply ./kyverno-policies -r $m
           done
 ```
 

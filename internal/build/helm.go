@@ -15,6 +15,7 @@ import (
 
 	"github.com/doodlescheduling/flux-kustomize-action/internal/helm/chart"
 	"github.com/doodlescheduling/flux-kustomize-action/internal/helm/getter"
+	"github.com/doodlescheduling/flux-kustomize-action/internal/helm/postrenderer"
 	"github.com/doodlescheduling/flux-kustomize-action/internal/helm/registry"
 	"github.com/doodlescheduling/flux-kustomize-action/internal/helm/repository"
 	soci "github.com/doodlescheduling/flux-kustomize-action/internal/oci"
@@ -31,6 +32,7 @@ import (
 	helmaction "helm.sh/helm/v3/pkg/action"
 	"helm.sh/helm/v3/pkg/chart/loader"
 	helmgetter "helm.sh/helm/v3/pkg/getter"
+	"helm.sh/helm/v3/pkg/postrender"
 	helmreg "helm.sh/helm/v3/pkg/registry"
 	"helm.sh/helm/v3/pkg/release"
 	corev1 "k8s.io/api/core/v1"
@@ -138,7 +140,7 @@ func (h *Helm) Build(ctx context.Context, r *resource.Resource, kustomize *Kusto
 		return nil, err
 	}
 
-	release, err := h.renderRelease(*hr, values, chartBuild)
+	release, err := h.renderRelease(ctx, *hr, values, chartBuild)
 	if err != nil {
 		return nil, err
 	}
@@ -192,20 +194,79 @@ func (h *Helm) buildChart(ctx context.Context, repository runtime.Object, releas
 	return fmt.Errorf("unsupported chart repository `%T`", repository)
 }
 
-func (h *Helm) renderRelease(hr helmv1.HelmRelease, values chartutil.Values, b *chart.Build) (*release.Release, error) {
-	cfg := &helmaction.Configuration{}
-	client := helmaction.NewInstall(cfg)
-	client.ReleaseName = hr.Name
-	client.DryRun = true
-	client.IncludeCRDs = true
-	client.ClientOnly = true
-
+func (h *Helm) renderRelease(ctx context.Context, hr helmv1.HelmRelease, values chartutil.Values, b *chart.Build) (*release.Release, error) {
 	chart, err := loader.Load(b.Path)
 	if err != nil {
 		return nil, err
 	}
 
-	return client.RunWithContext(context.TODO(), chart, values)
+	cfg := &helmaction.Configuration{}
+	client := helmaction.NewInstall(cfg)
+	client.ReleaseName = hr.GetReleaseName()
+	client.Namespace = hr.GetReleaseNamespace()
+	client.DryRun = true
+	client.IncludeCRDs = true
+	client.ClientOnly = true
+	client.Timeout = hr.Spec.GetInstall().GetTimeout(hr.GetTimeout()).Duration
+	client.DisableHooks = hr.Spec.GetInstall().DisableHooks
+	client.DisableOpenAPIValidation = hr.Spec.GetInstall().DisableOpenAPIValidation
+	client.Devel = true
+	client.EnableDNS = true
+
+	renderer, err := h.postRenderers(hr)
+	if err != nil {
+		return nil, err
+	}
+	client.PostRenderer = renderer
+
+	// If user opted-in to install (or replace) CRDs, install them first.
+	var legacyCRDsPolicy = helmv1.Create
+	if hr.Spec.GetInstall().SkipCRDs {
+		legacyCRDsPolicy = helmv1.Skip
+	}
+
+	_, err = h.validateCRDsPolicy(hr.Spec.GetInstall().CRDs, legacyCRDsPolicy)
+	if err != nil {
+		return nil, err
+	}
+
+	return client.RunWithContext(ctx, chart, values)
+}
+
+// Create post renderer instances from HelmRelease and combine them into
+// a single combined post renderer.
+func (h *Helm) postRenderers(hr helmv1.HelmRelease) (postrender.PostRenderer, error) {
+	var combinedRenderer = postrenderer.NewCombinedPostRenderer()
+	for _, r := range hr.Spec.PostRenderers {
+		if r.Kustomize != nil {
+			combinedRenderer.AddRenderer(postrenderer.NewPostRendererKustomize(r.Kustomize))
+		}
+	}
+	combinedRenderer.AddRenderer(postrenderer.NewPostRendererOriginLabels(&hr))
+	combinedRenderer.AddRenderer(postrenderer.NewPostRendererNamespace(&hr))
+
+	if combinedRenderer.Len() == 0 {
+		return nil, nil
+	}
+	return &combinedRenderer, nil
+}
+
+func (h *Helm) validateCRDsPolicy(policy helmv1.CRDsPolicy, defaultValue helmv1.CRDsPolicy) (helmv1.CRDsPolicy, error) {
+	switch policy {
+	case "":
+		return defaultValue, nil
+	case helmv1.Skip:
+		break
+	case helmv1.Create:
+		break
+	case helmv1.CreateReplace:
+		break
+	default:
+		return policy, fmt.Errorf("invalid CRD policy '%s' defined in field CRDsPolicy, valid values are '%s', '%s' or '%s'",
+			policy, helmv1.Skip, helmv1.Create, helmv1.CreateReplace,
+		)
+	}
+	return policy, nil
 }
 
 // composeValues attempts to resolve all v2beta1.ValuesReference resources

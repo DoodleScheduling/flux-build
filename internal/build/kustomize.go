@@ -90,24 +90,14 @@ func (k *Kustomize) buildKustomization(path string) (resmap.ResMap, error) {
 
 	_, err := os.Stat(kfile)
 	if err != nil {
-		curPath, err := os.Getwd()
-		if err != nil {
-			return nil, err
-		}
-
-		if err := os.Chdir(path); err != nil {
-			return nil, err
-		}
-
 		defer func() {
 			_ = os.Remove(kfile)
-			_ = os.Chdir(curPath)
 		}()
 
 		pvd := provider.NewDefaultDepProvider()
-		err = k.createKustomization(".", fs, pvd.GetResourceFactory())
+		err = k.createKustomization(path, fs, pvd.GetResourceFactory())
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("failed create kustomization: %w", err)
 		}
 	}
 
@@ -147,13 +137,21 @@ func (k *Kustomize) createKustomization(path string, fSys filesys.FileSystem, rf
 
 func (k *Kustomize) detectResources(fSys filesys.FileSystem, rf *resource.Factory, base string, recursive bool) ([]string, error) {
 	var paths []string
+
 	err := fSys.Walk(base, func(path string, info os.FileInfo, err error) error {
 		if err != nil {
 			return err
 		}
+
+		normalizedPath, err := filepath.Rel(base, path)
+		if err != nil {
+			return err
+		}
+
 		if path == base {
 			return nil
 		}
+
 		if info.IsDir() {
 			if !recursive {
 				return filepath.SkipDir
@@ -162,7 +160,7 @@ func (k *Kustomize) detectResources(fSys filesys.FileSystem, rf *resource.Factor
 			// directory as a resource and do not decend into it.
 			for _, kfilename := range konfig.RecognizedKustomizationFileNames() {
 				if fSys.Exists(filepath.Join(path, kfilename)) {
-					paths = append(paths, path)
+					paths = append(paths, normalizedPath)
 					return filepath.SkipDir
 				}
 			}
@@ -175,9 +173,10 @@ func (k *Kustomize) detectResources(fSys filesys.FileSystem, rf *resource.Factor
 		if _, err := rf.SliceFromBytes(fContents); err != nil {
 			return nil
 		}
-		paths = append(paths, path)
+		paths = append(paths, normalizedPath)
 		return nil
 	})
+
 	return paths, err
 }
 
