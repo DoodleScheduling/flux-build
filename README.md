@@ -7,14 +7,14 @@
 [![license](https://img.shields.io/github/license/DoodleScheduling/flux-kustomize-action.svg)](https://github.com/DoodleScheduling/flux-kustomize-action/blob/master/LICENSE)
 
 Github action for testing kustomize overlays with suppport for unpacking flux HelmReleases.
+Errors must be acknowledge as early as possible in a delivery pipeline. Errors emerging from HelmReleases often only occur once a HelmRelease is already applied to the cluster.
+With this action manifests from a HelmRelease can be validated before applying it to a cluster.  
+
 This action builds a kustomization overlay similar how the behaviour of the kustomize-controller is.
-The output is a yaml file containing all built resources.
+The output is a comma separated path to a yaml file containing all built resources (one manifest for each configured path).
 
 While this is great the big feature is that it also includes all manifests templated from each HelmRelease.
 The action templates the manifest similar how the behaviour of the helm-controller is with many features supported including referencing ConfigMaps, in-chart values and more.
-
-Errors must be acknowledge as early as possible in a delivery pipeline. Errors emerging from HelmReleases often only occur once a HelmRelease is already applied to the cluster.
-With this action manifests from a HelmRelease can be validated before appliying it to a cluster.  
 
 ### Inputs
 

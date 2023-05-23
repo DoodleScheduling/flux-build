@@ -2,6 +2,7 @@ package worker
 
 import (
 	"context"
+	"fmt"
 	"sync"
 )
 
@@ -55,6 +56,15 @@ func (p *pool) Start(ctx context.Context) *pool {
 			for {
 				select {
 				case <-ctx.Done():
+					for task := range p.tasks {
+						fmt.Printf("build task %#v\n", task)
+						if task == nil {
+							return
+						}
+
+						p.err <- task(ctx)
+					}
+
 					return
 
 				case task, ok := <-p.tasks:

@@ -84,6 +84,11 @@ func NewFromInputs(ctx context.Context, action *githubactions.Action) (*Action, 
 	return &a, nil
 }
 
+type result struct {
+	bytes     []byte
+	kustomize *build.Kustomize
+}
+
 func (a *Action) Run(ctx context.Context) error {
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
@@ -106,7 +111,7 @@ func (a *Action) Run(ctx context.Context) error {
 		},
 	).Start(ctx)
 
-	manifests := make(chan []byte, len(a.Paths))
+	manifests := make(chan result, a.Workers)
 	helmBuilder := build.NewHelmBuilder(build.HelmOpts{
 		KubeVersion: a.KubeVersion,
 	})
@@ -114,6 +119,29 @@ func (a *Action) Run(ctx context.Context) error {
 	for _, path := range a.Paths {
 		p := path
 		a.Action.Infof("build kustomize path `%s`", p)
+		helmResultPool.Push(worker.Task(func(ctx context.Context) error {
+			for {
+				select {
+				case <-ctx.Done():
+					return nil
+				case manifest, ok := <-manifests:
+					if !ok {
+						return nil
+					}
+
+					_, err := manifest.kustomize.Write(manifest.bytes)
+					if err != nil {
+						a.Action.Errorf("failed to write helm manifests to output: %s", err.Error())
+						if a.FailFast {
+							cancel()
+						}
+
+						return err
+					}
+				}
+			}
+		}))
+
 		kustomizePool.Push(worker.Task(func(ctx context.Context) error {
 			k := build.NewKustomizeBuilder(build.KustomizeOpts{
 				Path: p,
@@ -129,29 +157,6 @@ func (a *Action) Run(ctx context.Context) error {
 			}
 
 			a.Action.Infof("kustomization build for `%s` at `%s`", p, k.File.Name())
-
-			helmResultPool.Push(worker.Task(func(ctx context.Context) error {
-				for {
-					select {
-					case <-ctx.Done():
-						return nil
-					case manifest, ok := <-manifests:
-						if !ok {
-							return nil
-						}
-
-						_, err := k.Write(manifest)
-						if err != nil {
-							a.Action.Errorf("failed to write helm manifests to output: %s", err.Error())
-							if a.FailFast {
-								cancel()
-							}
-
-							return err
-						}
-					}
-				}
-			}))
 
 			for _, r := range k.Resources() {
 				res := r
@@ -176,7 +181,11 @@ func (a *Action) Run(ctx context.Context) error {
 						return nil
 					}
 
-					manifests <- manifest
+					manifests <- result{
+						bytes:     manifest,
+						kustomize: k,
+					}
+
 					return nil
 				}))
 			}
@@ -186,7 +195,7 @@ func (a *Action) Run(ctx context.Context) error {
 	}
 
 	a.exit(kustomizePool, helmPool)
-	cancel()
+	close(manifests)
 	a.exit(helmResultPool)
 
 	return nil
