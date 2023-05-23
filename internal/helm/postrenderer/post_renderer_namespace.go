@@ -12,8 +12,13 @@ import (
 )
 
 func NewPostRendererNamespace(release *v2.HelmRelease) *postRendererNamespace {
+	ns := release.GetReleaseNamespace()
+	if ns == "" {
+		ns = "default"
+	}
+
 	return &postRendererNamespace{
-		namespace: release.GetReleaseNamespace(),
+		namespace: ns,
 	}
 }
 

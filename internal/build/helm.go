@@ -19,6 +19,7 @@ import (
 	"github.com/doodlescheduling/flux-kustomize-action/internal/helm/registry"
 	"github.com/doodlescheduling/flux-kustomize-action/internal/helm/repository"
 	soci "github.com/doodlescheduling/flux-kustomize-action/internal/oci"
+	"github.com/drone/envsubst"
 	helmv1 "github.com/fluxcd/helm-controller/api/v2beta1"
 	"github.com/fluxcd/pkg/oci"
 	"github.com/fluxcd/pkg/oci/auth/login"
@@ -36,7 +37,6 @@ import (
 	helmreg "helm.sh/helm/v3/pkg/registry"
 	"helm.sh/helm/v3/pkg/release"
 	corev1 "k8s.io/api/core/v1"
-	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/runtime/serializer"
@@ -78,6 +78,7 @@ func NewHelmBuilder(opts HelmOpts) *Helm {
 		helmv1.AddToScheme(scheme)
 		sourcev1beta2.AddToScheme(scheme)
 		sourcev1beta1.AddToScheme(scheme)
+		corev1.AddToScheme(scheme)
 
 		codecFactory := serializer.NewCodecFactory(scheme)
 		deserializer := codecFactory.UniversalDeserializer()
@@ -101,7 +102,12 @@ func (h *Helm) Build(ctx context.Context, r *resource.Resource, kustomize *Kusto
 		return nil, fmt.Errorf("failed to marshal helmrelease as yaml: %w", err)
 	}
 
-	obj, _, err := h.opts.Decoder.Decode(raw, nil, nil)
+	substituted, err := envsubst.EvalEnv(string(raw))
+	if err != nil {
+		return nil, fmt.Errorf("failed to substitute envs: %w", err)
+	}
+
+	obj, _, err := h.opts.Decoder.Decode([]byte(substituted), nil, nil)
 	if err != nil {
 		return nil, fmt.Errorf("failed decode resource to helmrelease: %w", err)
 	}
@@ -201,10 +207,15 @@ func (h *Helm) renderRelease(ctx context.Context, hr helmv1.HelmRelease, values 
 		return nil, err
 	}
 
+	ns := hr.GetReleaseNamespace()
+	if ns == "" {
+		ns = "default"
+	}
+
 	cfg := &helmaction.Configuration{}
 	client := helmaction.NewInstall(cfg)
 	client.ReleaseName = hr.GetReleaseName()
-	client.Namespace = hr.GetReleaseNamespace()
+	client.Namespace = ns
 	client.DryRun = true
 	client.IncludeCRDs = true
 	client.KubeVersion = h.opts.KubeVersion
@@ -239,13 +250,14 @@ func (h *Helm) renderRelease(ctx context.Context, hr helmv1.HelmRelease, values 
 // a single combined post renderer.
 func (h *Helm) postRenderers(hr helmv1.HelmRelease) (postrender.PostRenderer, error) {
 	var combinedRenderer = postrenderer.NewCombinedPostRenderer()
+	combinedRenderer.AddRenderer(postrenderer.NewPostRendererNamespace(&hr))
+
 	for _, r := range hr.Spec.PostRenderers {
 		if r.Kustomize != nil {
 			combinedRenderer.AddRenderer(postrenderer.NewPostRendererKustomize(r.Kustomize))
 		}
 	}
 	combinedRenderer.AddRenderer(postrenderer.NewPostRendererOriginLabels(&hr))
-	combinedRenderer.AddRenderer(postrenderer.NewPostRendererNamespace(&hr))
 
 	if combinedRenderer.Len() == 0 {
 		return nil, nil
@@ -316,9 +328,9 @@ func (h *Helm) composeValues(ctx context.Context, kustomize *Kustomize, hr helmv
 				return nil, fmt.Errorf("failed decode resource to helmrelease: %w", err)
 			}
 
-			cm, ok := obj.(*v1.ConfigMap)
+			cm, ok := obj.(*corev1.ConfigMap)
 			if !ok {
-				return nil, fmt.Errorf("expected type %T", v1.ConfigMap{})
+				return nil, fmt.Errorf("expected type %T", corev1.ConfigMap{})
 			}
 
 			if data, ok := cm.Data[v.GetValuesKey()]; !ok {
@@ -327,7 +339,8 @@ func (h *Helm) composeValues(ctx context.Context, kustomize *Kustomize, hr helmv
 				valuesData = []byte(data)
 			}
 		case "Secret":
-			//unsupported
+			fmt.Println("warning: secrets from value maps are not supported")
+			continue
 		default:
 			return nil, fmt.Errorf("unsupported ValuesReference kind '%s'", v.Kind)
 		}
