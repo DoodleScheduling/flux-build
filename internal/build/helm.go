@@ -286,7 +286,7 @@ func (h *Helm) composeValues(ctx context.Context, kustomize *Kustomize, hr helmv
 			lookupRef := ref{
 				GroupKind: schema.GroupKind{
 					Group: "",
-					Kind:  "CongiMap",
+					Kind:  "ConfigMap",
 				},
 				Name:      v.Name,
 				Namespace: hr.Namespace,
