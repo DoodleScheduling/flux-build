@@ -27,7 +27,7 @@ import (
 	"helm.sh/helm/v3/pkg/chart/loader"
 	"sigs.k8s.io/yaml"
 
-	"github.com/doodlescheduling/flux-kustomize-action/internal/helm"
+	"github.com/doodlescheduling/flux-build/internal/helm"
 )
 
 func TestLoader(t *testing.T) {

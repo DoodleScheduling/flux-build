@@ -1,7 +1,4 @@
-VERSION?=$(shell grep 'VERSION' cmd/main.go | awk '{ print $$4 }' | head -n 1 | tr -d '"')
-DEV_VERSION?=0.0.0-$(shell git rev-parse --abbrev-ref HEAD)-$(shell git rev-parse --short HEAD)-$(shell date +%s)
-# Architecture to use envtest with
-ENVTEST_ARCH ?= amd64
+IMG=ghcr.io/doodlescheduling/flux-build
 
 # Get the currently used golang install path (in GOPATH/bin, unless GOBIN is set)
 ifeq (,$(shell go env GOBIN))
@@ -37,11 +34,15 @@ code-gen:
 	./hack/code-gen.sh
 
 build:
-	CGO_ENABLED=0 go build -ldflags="-s -w -X main.VERSION=$(VERSION)" -o ./bin/flux-kustomize-action .
+	CGO_ENABLED=0 go build -o ./flux-build .
+
+.PHONY: docker-build
+docker-build: build
+	docker build -t ${IMG} .
 
 .PHONY: install
 install:
-	CGO_ENABLED=0 go install ./cmd
+	CGO_ENABLED=0 go install .
 
 # go-install-tool will 'go install' any package $2 and install it to $1
 define go-install-tool

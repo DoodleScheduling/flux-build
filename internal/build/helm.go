@@ -13,12 +13,12 @@ import (
 	"strings"
 	"time"
 
-	"github.com/doodlescheduling/flux-kustomize-action/internal/helm/chart"
-	"github.com/doodlescheduling/flux-kustomize-action/internal/helm/getter"
-	"github.com/doodlescheduling/flux-kustomize-action/internal/helm/postrenderer"
-	"github.com/doodlescheduling/flux-kustomize-action/internal/helm/registry"
-	"github.com/doodlescheduling/flux-kustomize-action/internal/helm/repository"
-	soci "github.com/doodlescheduling/flux-kustomize-action/internal/oci"
+	"github.com/doodlescheduling/flux-build/internal/helm/chart"
+	"github.com/doodlescheduling/flux-build/internal/helm/getter"
+	"github.com/doodlescheduling/flux-build/internal/helm/postrenderer"
+	"github.com/doodlescheduling/flux-build/internal/helm/registry"
+	"github.com/doodlescheduling/flux-build/internal/helm/repository"
+	soci "github.com/doodlescheduling/flux-build/internal/oci"
 	"github.com/drone/envsubst"
 	helmv1 "github.com/fluxcd/helm-controller/api/v2beta1"
 	"github.com/fluxcd/pkg/oci"
@@ -47,6 +47,7 @@ import (
 )
 
 type HelmOpts struct {
+	APIVersions []string
 	FailFast    bool
 	CacheDir    string
 	KubeVersion *chartutil.KubeVersion
@@ -225,6 +226,10 @@ func (h *Helm) renderRelease(ctx context.Context, hr helmv1.HelmRelease, values 
 	client.DisableOpenAPIValidation = hr.Spec.GetInstall().DisableOpenAPIValidation
 	client.Devel = true
 	client.EnableDNS = true
+
+	apiVersions := chartutil.DefaultVersionSet
+	apiVersions = append(apiVersions, h.opts.APIVersions...)
+	client.APIVersions = apiVersions
 
 	renderer, err := h.postRenderers(hr)
 	if err != nil {

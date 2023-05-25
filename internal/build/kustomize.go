@@ -23,7 +23,6 @@ type KustomizeOpts struct {
 }
 
 type Kustomize struct {
-	*os.File
 	opts      KustomizeOpts
 	resources map[ref]*resource.Resource
 }
@@ -35,17 +34,17 @@ func NewKustomizeBuilder(opts KustomizeOpts) *Kustomize {
 	}
 }
 
-func (k *Kustomize) Build(ctx context.Context) error {
+func (k *Kustomize) Build(ctx context.Context) ([]byte, error) {
 	resourcesMap, err := k.buildKustomization(k.opts.Path)
 	if err != nil {
-		return fmt.Errorf("failed build kustomization: %w", err)
+		return nil, fmt.Errorf("failed build kustomization: %w", err)
 	}
 
 	// create index by resource
 	for _, r := range resourcesMap.Resources() {
 		resMeta, err := r.RNode.GetMeta()
 		if err != nil {
-			return err
+			return nil, err
 		}
 
 		gvk := schema.FromAPIVersionAndKind(resMeta.APIVersion, resMeta.Kind)
@@ -62,22 +61,10 @@ func (k *Kustomize) Build(ctx context.Context) error {
 
 	kustomizeBuild, err := resourcesMap.AsYaml()
 	if err != nil {
-		return fmt.Errorf("failed marshal resources as yaml: %w", err)
+		return nil, fmt.Errorf("failed marshal resources as yaml: %w", err)
 	}
 
-	out, err := os.CreateTemp("", "yaml")
-	if err != nil {
-		return fmt.Errorf("failed create output manifest file: %w", err)
-	}
-
-	_, err = out.Write(kustomizeBuild)
-	if err != nil {
-		return fmt.Errorf("failed to write kustomize build manifests to output: %w", err)
-	}
-
-	k.File = out
-
-	return nil
+	return kustomizeBuild, err
 }
 
 func (k *Kustomize) Resources() map[ref]*resource.Resource {

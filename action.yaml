@@ -1,4 +1,4 @@
-name: flux-kustomize-action
+name: flux-build
 description: Build kustomize overlay with support for flux resources including HelmReleases
 
 inputs:
@@ -35,4 +35,4 @@ outputs:
 
 runs:
   using: 'docker'
-  image: 'docker://ghcr.io/doodlescheduling/flux-kustomize-action:v0'
+  image: 'docker://ghcr.io/doodlescheduling/flux-build:v0'

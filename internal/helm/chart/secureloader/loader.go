@@ -28,7 +28,7 @@ import (
 	"helm.sh/helm/v3/pkg/chart"
 	"helm.sh/helm/v3/pkg/chart/loader"
 
-	"github.com/doodlescheduling/flux-kustomize-action/internal/helm"
+	"github.com/doodlescheduling/flux-build/internal/helm"
 )
 
 // Loader returns a new loader.ChartLoader appropriate for the given chart

@@ -35,8 +35,8 @@ import (
 	"github.com/Masterminds/semver/v3"
 	"github.com/google/go-containerregistry/pkg/name"
 
-	"github.com/doodlescheduling/flux-kustomize-action/internal/oci"
-	"github.com/doodlescheduling/flux-kustomize-action/internal/transport"
+	"github.com/doodlescheduling/flux-build/internal/oci"
+	"github.com/doodlescheduling/flux-build/internal/transport"
 	"github.com/fluxcd/pkg/version"
 )
 

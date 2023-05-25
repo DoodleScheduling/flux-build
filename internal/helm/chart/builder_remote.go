@@ -32,9 +32,9 @@ import (
 
 	"github.com/fluxcd/pkg/runtime/transform"
 
-	"github.com/doodlescheduling/flux-kustomize-action/internal/fs"
-	"github.com/doodlescheduling/flux-kustomize-action/internal/helm/chart/secureloader"
-	"github.com/doodlescheduling/flux-kustomize-action/internal/helm/repository"
+	"github.com/doodlescheduling/flux-build/internal/fs"
+	"github.com/doodlescheduling/flux-build/internal/helm/chart/secureloader"
+	"github.com/doodlescheduling/flux-build/internal/helm/repository"
 )
 
 type remoteChartBuilder struct {

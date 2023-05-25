@@ -28,7 +28,7 @@ import (
 
 	"github.com/fluxcd/pkg/runtime/transform"
 
-	"github.com/doodlescheduling/flux-kustomize-action/internal/helm/chart/secureloader"
+	"github.com/doodlescheduling/flux-build/internal/helm/chart/secureloader"
 )
 
 type localChartBuilder struct {

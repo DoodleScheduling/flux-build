@@ -26,7 +26,7 @@ import (
 	helmchart "helm.sh/helm/v3/pkg/chart"
 	"helm.sh/helm/v3/pkg/chartutil"
 
-	"github.com/doodlescheduling/flux-kustomize-action/internal/helm"
+	"github.com/doodlescheduling/flux-build/internal/helm"
 )
 
 var (

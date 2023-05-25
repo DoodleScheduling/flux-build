@@ -1,18 +1,18 @@
-project_name: flux-kustomize-action
+project_name: flux-build
 
 builds:
-- id: flux-kustomize-action
-  binary: flux-kustomize-action
+- id: flux-build
+  binary: flux-build
   goos:
   - linux
   env:
   - CGO_ENABLED=0
 
 archives:
-- id: flux-kustomize-action
-  name_template: "flux-kustomize-action_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
+- id: flux-build
+  name_template: "flux-build_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
   builds:
-  - flux-kustomize-action
+  - flux-build
 
 checksum:
   name_template: 'checksums.txt'
@@ -36,7 +36,7 @@ dockers:
   dockerfile: Dockerfile
   use: buildx
   ids:
-  - flux-kustomize-action
+  - flux-build
   build_flag_templates:
   - --platform=linux/amd64
   - --label=org.opencontainers.image.title={{ .ProjectName }}
@@ -53,7 +53,7 @@ dockers:
   dockerfile: Dockerfile
   use: buildx
   ids:
-  - flux-kustomize-action
+  - flux-build
   build_flag_templates:
   - --platform=linux/arm64/v8
   - --label=org.opencontainers.image.title={{ .ProjectName }}

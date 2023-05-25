@@ -2,3 +2,4 @@
 bin
 coverage.out
 dist
+flux-build

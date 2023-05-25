@@ -1,5 +1,5 @@
 FROM gcr.io/distroless/static:latest
 WORKDIR /
-COPY flux-kustomize-action flux-kustomize-action
+COPY flux-build flux-build
 
-ENTRYPOINT ["/flux-kustomize-action"]
+ENTRYPOINT ["/flux-build"]

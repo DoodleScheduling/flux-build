@@ -38,8 +38,8 @@ import (
 
 	"github.com/fluxcd/pkg/version"
 
-	"github.com/doodlescheduling/flux-kustomize-action/internal/helm"
-	"github.com/doodlescheduling/flux-kustomize-action/internal/transport"
+	"github.com/doodlescheduling/flux-build/internal/helm"
+	"github.com/doodlescheduling/flux-build/internal/transport"
 )
 
 var (

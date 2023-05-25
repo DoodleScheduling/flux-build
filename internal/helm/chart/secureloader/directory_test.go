@@ -30,8 +30,8 @@ import (
 	"helm.sh/helm/v3/pkg/chart"
 	"sigs.k8s.io/yaml"
 
-	"github.com/doodlescheduling/flux-kustomize-action/internal/helm"
-	"github.com/doodlescheduling/flux-kustomize-action/internal/helm/chart/secureloader/ignore"
+	"github.com/doodlescheduling/flux-build/internal/helm"
+	"github.com/doodlescheduling/flux-build/internal/helm/chart/secureloader/ignore"
 )
 
 func TestSecureDirLoader_Load(t *testing.T) {

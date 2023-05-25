@@ -35,7 +35,7 @@ import (
 	"helm.sh/helm/v3/pkg/chartutil"
 	"sigs.k8s.io/yaml"
 
-	"github.com/doodlescheduling/flux-kustomize-action/internal/helm"
+	"github.com/doodlescheduling/flux-build/internal/helm"
 )
 
 var drivePathPattern = regexp.MustCompile(`^[a-zA-Z]:/`)
