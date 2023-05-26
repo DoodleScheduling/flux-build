@@ -21,7 +21,7 @@ require (
 	github.com/fluxcd/pkg/version v0.2.1
 	github.com/fluxcd/source-controller/api v0.36.1
 	github.com/go-logr/logr v1.2.4
-	github.com/go-logr/zapr v1.2.3
+	github.com/go-logr/zapr v1.2.4
 	github.com/google/go-containerregistry v0.15.1
 	github.com/onsi/gomega v1.27.7
 	github.com/opencontainers/go-digest v1.0.0
