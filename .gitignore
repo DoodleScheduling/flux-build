@@ -1,5 +1,6 @@
 ./action
 bin
 coverage.out
+build.yaml
 dist
 flux-build

@@ -1,0 +1,167 @@
+apiVersion: v1
+data:
+  values.yaml: 'logLevel: info'
+kind: ConfigMap
+metadata:
+  name: values
+  namespace: podinfo
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  annotations:
+    internal.config.kubernetes.io/previousKinds: Deployment
+    internal.config.kubernetes.io/previousNames: podinfo
+    internal.config.kubernetes.io/previousNamespaces: default
+  labels:
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/name: podinfo
+    app.kubernetes.io/version: 6.3.5
+    helm.sh/chart: podinfo-6.3.5
+    helm.toolkit.fluxcd.io/name: podinfo
+    helm.toolkit.fluxcd.io/namespace: podinfo
+  name: podinfo
+  namespace: podinfo
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: podinfo
+  strategy:
+    rollingUpdate:
+      maxUnavailable: 1
+    type: RollingUpdate
+  template:
+    metadata:
+      annotations:
+        prometheus.io/port: "9898"
+        prometheus.io/scrape: "true"
+      labels:
+        app.kubernetes.io/name: podinfo
+    spec:
+      containers:
+        - command:
+            - ./podinfo
+            - --port=9898
+            - --cert-path=/data/cert
+            - --port-metrics=9797
+            - --grpc-port=9999
+            - --grpc-service-name=podinfo
+            - --level=info
+            - --random-delay=false
+            - --random-error=false
+          env:
+            - name: PODINFO_UI_COLOR
+              value: '#34577c'
+          image: ghcr.io/stefanprodan/podinfo:6.3.5
+          imagePullPolicy: IfNotPresent
+          livenessProbe:
+            exec:
+              command:
+                - podcli
+                - check
+                - http
+                - localhost:9898/healthz
+            failureThreshold: 3
+            initialDelaySeconds: 1
+            periodSeconds: 10
+            successThreshold: 1
+            timeoutSeconds: 5
+          name: podinfo
+          ports:
+            - containerPort: 9898
+              name: http
+              protocol: TCP
+            - containerPort: 9797
+              name: http-metrics
+              protocol: TCP
+            - containerPort: 9999
+              name: grpc
+              protocol: TCP
+          readinessProbe:
+            exec:
+              command:
+                - podcli
+                - check
+                - http
+                - localhost:9898/readyz
+            failureThreshold: 3
+            initialDelaySeconds: 1
+            periodSeconds: 10
+            successThreshold: 1
+            timeoutSeconds: 5
+          resources:
+            limits: null
+            requests:
+              cpu: 1m
+              memory: 16Mi
+          volumeMounts:
+            - mountPath: /data
+              name: data
+      terminationGracePeriodSeconds: 30
+      volumes:
+        - emptyDir: {}
+          name: data
+---
+apiVersion: helm.toolkit.fluxcd.io/v2beta1
+kind: HelmRelease
+metadata:
+  name: podinfo
+  namespace: podinfo
+spec:
+  chart:
+    spec:
+      chart: podinfo
+      sourceRef:
+        kind: HelmRepository
+        name: podinfo
+        namespace: flux-system
+      version: 6.3.5
+  interval: 15m
+  releaseName: podinfo
+  timeout: 5m
+  values:
+    replicaCount: 2
+  valuesFrom:
+    - kind: ConfigMap
+      name: values
+      valuesKey: values.yaml
+---
+apiVersion: source.toolkit.fluxcd.io/v1beta1
+kind: HelmRepository
+metadata:
+  name: podinfo
+  namespace: flux-system
+spec:
+  interval: 15m
+  url: https://stefanprodan.github.io/podinfo
+---
+apiVersion: v1
+kind: Service
+metadata:
+  annotations:
+    internal.config.kubernetes.io/previousKinds: Service
+    internal.config.kubernetes.io/previousNames: podinfo
+    internal.config.kubernetes.io/previousNamespaces: default
+  labels:
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/name: podinfo
+    app.kubernetes.io/version: 6.3.5
+    helm.sh/chart: podinfo-6.3.5
+    helm.toolkit.fluxcd.io/name: podinfo
+    helm.toolkit.fluxcd.io/namespace: podinfo
+  name: podinfo
+  namespace: podinfo
+spec:
+  ports:
+    - name: http
+      port: 9898
+      protocol: TCP
+      targetPort: http
+    - name: grpc
+      port: 9999
+      protocol: TCP
+      targetPort: grpc
+  selector:
+    app.kubernetes.io/name: podinfo
+  type: ClusterIP

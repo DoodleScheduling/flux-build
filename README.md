@@ -1,4 +1,4 @@
-## Build and test kustomize overlays with flux support
+# Build and test kustomize overlays with flux support
 
 [![release](https://img.shields.io/github/release/DoodleScheduling/flux-build/all.svg)](https://github.com/DoodleScheduling/flux-build/releases)
 [![release](https://github.com/doodlescheduling/flux-build/actions/workflows/release.yaml/badge.svg)](https://github.com/doodlescheduling/flux-build/actions/workflows/release.yaml)
@@ -14,21 +14,47 @@ It builds a kustomization overlay similar how the behaviour of the kustomize-con
 The built manifests are dumped to stdout (or to the configured output).
 While this is great the big feature is that it also includes all manifests templated from each HelmRelease discovered within the kustomize build.
 
-Like for a flux2 kustomization it automatically creates the kustomize.yaml if non exists.
+Like for a flux2 kustomization it automatically creates the kustomize.yaml if none exists.
 
 * Tests if a folder recursively can be kustomized
 * Templates all HelmReleases from the configured source
 * Supports HelmRelease in-line values, ConfigMaps and postRender patches
 
-The built manifests can be used for further tests like kubeconform tests, kyverno checks and other tooling.
+The built manifests can be used for further tests like kubeconform tests, kyverno checks and other tooling or just to inspect
+locally how manifests will look like after installing the HelmRelease. Basically the flux way for `helm template`.
 
-### Usage
+## Usage
 
 ```
 flux-build path/to/kustomize
 ```
 
-### Arguments
+Which will dump all manifests to stdout.
+It is also possible to chain multiple paths, this is useful in cases one HelmRelease should be templated but the values and or the source are in a different directory/kustomize overlay.
+
+```
+flux-build path/to/overlay /path/to/helmreposiories /path/to/configmapvalues
+```
+
+The rendering also works if a single path to a helmrelease is given:
+```
+flux-build helmrelease.yaml /path/to/helmreposiories
+```
+
+## Installation
+
+### Brew
+```
+brew tap doodlescheduling/flux-build
+brew install flux-build
+```
+
+### Docker
+```
+docker pull ghcr.io/doodlescheduling/flux-build:v0
+```
+
+## Arguments
 
 | Flag  | Env | Default | Description |
 | ------------- | ------------- | ------------- | ------------- |

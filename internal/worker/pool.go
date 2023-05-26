@@ -29,6 +29,10 @@ type pool struct {
 }
 
 func NewPool(opts PoolOptions) *pool {
+	if opts.Workers == 0 {
+		opts.Workers = 1
+	}
+
 	return &pool{
 		opts:  opts,
 		tasks: make(chan Task, opts.Workers),

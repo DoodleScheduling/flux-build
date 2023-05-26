@@ -91,7 +91,7 @@ func NewHelmBuilder(opts HelmOpts) *Helm {
 	}
 }
 
-func (h *Helm) Build(ctx context.Context, r *resource.Resource, kustomize *Kustomize) ([]byte, error) {
+func (h *Helm) Build(ctx context.Context, r *resource.Resource, db map[ref]*resource.Resource) ([]byte, error) {
 	r.SetGvk(resid.Gvk{
 		Group:   helmv1.GroupVersion.Group,
 		Version: helmv1.GroupVersion.Version,
@@ -126,7 +126,7 @@ func (h *Helm) Build(ctx context.Context, r *resource.Resource, kustomize *Kusto
 		Name:      hr.Spec.Chart.Spec.SourceRef.Name,
 		Namespace: hr.Spec.Chart.Spec.SourceRef.Namespace,
 	}
-	source, ok := kustomize.resources[lookupRef]
+	source, ok := db[lookupRef]
 
 	if !ok {
 		return nil, fmt.Errorf("no source `%v` found for helmrelease `%s/%s`", lookupRef, hr.GetNamespace(), hr.GetName())
@@ -143,7 +143,7 @@ func (h *Helm) Build(ctx context.Context, r *resource.Resource, kustomize *Kusto
 		return nil, err
 	}
 
-	values, err := h.composeValues(ctx, kustomize, *hr)
+	values, err := h.composeValues(ctx, db, *hr)
 	if err != nil {
 		return nil, err
 	}
@@ -291,7 +291,7 @@ func (h *Helm) validateCRDsPolicy(policy helmv1.CRDsPolicy, defaultValue helmv1.
 // composeValues attempts to resolve all v2beta1.ValuesReference resources
 // and merges them as defined. Referenced resources are only retrieved once
 // to ensure a single version is taken into account during the merge.
-func (h *Helm) composeValues(ctx context.Context, kustomize *Kustomize, hr helmv1.HelmRelease) (chartutil.Values, error) {
+func (h *Helm) composeValues(ctx context.Context, db map[ref]*resource.Resource, hr helmv1.HelmRelease) (chartutil.Values, error) {
 	result := chartutil.Values{}
 
 	for _, v := range hr.Spec.ValuesFrom {
@@ -308,7 +308,7 @@ func (h *Helm) composeValues(ctx context.Context, kustomize *Kustomize, hr helmv
 				Name:      v.Name,
 				Namespace: hr.Namespace,
 			}
-			res, ok := kustomize.resources[lookupRef]
+			res, ok := db[lookupRef]
 			if !ok {
 				if !v.Optional {
 					return nil, fmt.Errorf("could not find values configmap `%s/%v` for helmrelease `%s/%s`", hr.GetNamespace(), v.Name, hr.GetNamespace(), hr.GetName())

@@ -19,7 +19,7 @@ var (
 	log          logr.Logger
 	allowFailure bool
 	failFast     bool
-	workers      int
+	workers      int = 1
 	output       string
 	apiVersions  []string
 	cacheDir     string

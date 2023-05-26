@@ -23,52 +23,27 @@ type KustomizeOpts struct {
 }
 
 type Kustomize struct {
-	opts      KustomizeOpts
-	resources map[ref]*resource.Resource
+	opts KustomizeOpts
 }
 
 func NewKustomizeBuilder(opts KustomizeOpts) *Kustomize {
 	return &Kustomize{
-		opts:      opts,
-		resources: make(map[ref]*resource.Resource),
+		opts: opts,
 	}
 }
 
-func (k *Kustomize) Build(ctx context.Context) ([]byte, error) {
+func (k *Kustomize) Build(ctx context.Context) (resmap.ResMap, []byte, error) {
 	resourcesMap, err := k.buildKustomization(k.opts.Path)
 	if err != nil {
-		return nil, fmt.Errorf("failed build kustomization: %w", err)
-	}
-
-	// create index by resource
-	for _, r := range resourcesMap.Resources() {
-		resMeta, err := r.RNode.GetMeta()
-		if err != nil {
-			return nil, err
-		}
-
-		gvk := schema.FromAPIVersionAndKind(resMeta.APIVersion, resMeta.Kind)
-
-		k.resources[ref{
-			GroupKind: schema.GroupKind{
-				Group: gvk.Group,
-				Kind:  gvk.Kind,
-			},
-			Name:      resMeta.Name,
-			Namespace: resMeta.Namespace,
-		}] = r
+		return nil, nil, fmt.Errorf("failed build kustomization: %w", err)
 	}
 
 	kustomizeBuild, err := resourcesMap.AsYaml()
 	if err != nil {
-		return nil, fmt.Errorf("failed marshal resources as yaml: %w", err)
+		return nil, nil, fmt.Errorf("failed marshal resources as yaml: %w", err)
 	}
 
-	return kustomizeBuild, err
-}
-
-func (k *Kustomize) Resources() map[ref]*resource.Resource {
-	return k.resources
+	return resourcesMap, kustomizeBuild, err
 }
 
 func (k *Kustomize) buildKustomization(path string) (resmap.ResMap, error) {
@@ -77,6 +52,33 @@ func (k *Kustomize) buildKustomization(path string) (resmap.ResMap, error) {
 
 	_, err := os.Stat(kfile)
 	if err != nil {
+		stat, err := os.Stat(path)
+		if err != nil {
+			return nil, err
+		}
+
+		if !stat.IsDir() {
+			d, err := os.MkdirTemp(os.TempDir(), "")
+			if err != nil {
+				return nil, err
+			}
+
+			fullPath, err := filepath.Abs(path)
+			if err != nil {
+				return nil, err
+			}
+
+			if err := os.Symlink(fullPath, filepath.Join(d, filepath.Base(path))); err != nil {
+				return nil, err
+			}
+
+			path = d
+
+			defer func() {
+				_ = os.RemoveAll(d)
+			}()
+		}
+
 		defer func() {
 			_ = os.Remove(kfile)
 		}()

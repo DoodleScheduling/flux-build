@@ -10,6 +10,7 @@ import (
 	helmv1 "github.com/fluxcd/helm-controller/api/v2beta1"
 	"github.com/go-logr/logr"
 	"helm.sh/helm/v3/pkg/chartutil"
+	"sigs.k8s.io/kustomize/api/resmap"
 )
 
 type Action struct {
@@ -27,6 +28,18 @@ type Action struct {
 func (a *Action) Run(ctx context.Context) error {
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
+
+	abort := func(err error) error {
+		if err == nil {
+			return nil
+		}
+
+		if a.FailFast {
+			cancel()
+		}
+
+		return err
+	}
 
 	helmResultPool := worker.NewPool(
 		worker.PoolOptions{
@@ -46,6 +59,13 @@ func (a *Action) Run(ctx context.Context) error {
 		},
 	).Start(ctx)
 
+	resourcePool := worker.NewPool(
+		worker.PoolOptions{
+			Workers: 1,
+		},
+	).Start(ctx)
+
+	resources := make(chan resmap.ResMap, len(a.Paths))
 	manifests := make(chan []byte, a.Workers)
 	helmBuilder := build.NewHelmBuilder(build.HelmOpts{
 		APIVersions: a.APIVersions,
@@ -66,11 +86,7 @@ func (a *Action) Run(ctx context.Context) error {
 				if err != nil {
 
 					a.Logger.Error(err, "failed to write helm manifests to output")
-					if a.FailFast {
-						cancel()
-					}
-
-					return err
+					return abort(err)
 				}
 			}
 		}
@@ -85,50 +101,69 @@ func (a *Action) Run(ctx context.Context) error {
 				Path: p,
 			})
 
-			if b, err := k.Build(ctx); err != nil {
+			if index, b, err := k.Build(ctx); err != nil {
 				a.Logger.Error(err, "failed build kustomization", "path", p)
-				if a.FailFast {
-					cancel()
-				}
-
-				return err
+				return abort(err)
 			} else {
 				manifests <- b
-			}
-
-			for _, r := range k.Resources() {
-				res := r
-				if r.GetKind() != helmv1.HelmReleaseKind {
-					continue
-				}
-
-				helmPool.Push(worker.Task(func(ctx context.Context) error {
-					a.Logger.Info("build helm release", "namespace", res.GetNamespace(), "name", res.GetName())
-
-					manifest, err := helmBuilder.Build(ctx, res, k)
-					if err != nil {
-						a.Logger.Error(err, "failed build helmrelease", "namespace", res.GetNamespace(), "name", res.GetName())
-						if a.FailFast {
-							cancel()
-						}
-
-						return err
-					}
-
-					if ctx.Err() != nil {
-						return nil
-					}
-
-					manifests <- manifest
-					return nil
-				}))
+				resources <- index
 			}
 
 			return nil
 		}))
 	}
 
-	a.exit(kustomizePool, helmPool)
+	index := make(build.ResourceIndex)
+	resourcePool.Push(worker.Task(func(ctx context.Context) error {
+		for {
+			select {
+			case <-ctx.Done():
+				return nil
+			case build, ok := <-resources:
+				if !ok {
+					return nil
+				}
+
+				if err := index.Push(build.Resources()); err != nil {
+					return abort(err)
+				}
+
+				if ctx.Err() != nil {
+					return nil
+				}
+			}
+		}
+	}))
+
+	a.exit(kustomizePool)
+	close(resources)
+	a.exit(resourcePool)
+
+	for _, r := range index {
+		res := r
+		if r.GetKind() != helmv1.HelmReleaseKind {
+			continue
+		}
+
+		helmPool.Push(worker.Task(func(ctx context.Context) error {
+			a.Logger.Info("build helm release", "namespace", res.GetNamespace(), "name", res.GetName())
+
+			manifest, err := helmBuilder.Build(ctx, res, index)
+			if err != nil {
+				a.Logger.Error(err, "failed build helmrelease", "namespace", res.GetNamespace(), "name", res.GetName())
+				return abort(err)
+			}
+
+			if ctx.Err() != nil {
+				return nil
+			}
+
+			manifests <- manifest
+			return nil
+		}))
+	}
+
+	a.exit(helmPool)
 	close(manifests)
 	a.exit(helmResultPool)
 

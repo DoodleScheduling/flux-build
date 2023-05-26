@@ -20,6 +20,12 @@ fmt:
 test:
 	go test -coverprofile coverage.out -v ./...
 
+.PHONY: e2e-test
+e2e-test: build
+	./flux-build test/e2e/overlay test/e2e/repositories | yq ea '[.] | sort_by(.kind) | .[] | splitDoc' > build.yaml
+	cmp test/e2e/expected.yaml build.yaml
+	rm build.yaml
+
 GOLANGCI_LINT = $(GOBIN)/golangci-lint
 golangci-lint: ## Download golint locally if necessary.
 	$(call go-install-tool,$(GOLANGCI_LINT),github.com/golangci/golangci-lint/cmd/golangci-lint@v1.52.2)
