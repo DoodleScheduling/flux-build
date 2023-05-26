@@ -19,6 +19,10 @@ jobs:
         uses: actions/setup-go@4d34df0c2316fe8122ab82dc22947d607c0c91f9 # v4.0.0
         with:
           go-version: 1.20.x
+      - name: Setup yq
+        uses: chrisdickinson/setup-yq@3d931309f27270ebbafd53f2daee773a82ea1822 #v1.0.1
+        with:
+          yq-version: v4.34.1
       - name: Restore Go cache
         uses: actions/cache@88522ab9f39a2ea568f7027eddc7d8d8bc9d59c8 # v3.3.1
         with:
