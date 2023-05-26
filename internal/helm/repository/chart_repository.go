@@ -275,7 +275,9 @@ func (r *ChartRepository) DownloadChart(chart *repo.ChartVersion) (*bytes.Buffer
 
 	t := transport.NewOrIdle(r.tlsConfig)
 	clientOpts := append(r.Options, getter.WithTransport(t))
-	defer transport.Release(t)
+	defer func() {
+		_ = transport.Release(t)
+	}()
 
 	return r.Client.Get(resolvedUrl, clientOpts...)
 }
@@ -367,7 +369,9 @@ func (r *ChartRepository) DownloadIndex(w io.Writer) (err error) {
 
 	t := transport.NewOrIdle(r.tlsConfig)
 	clientOpts := append(r.Options, getter.WithTransport(t))
-	defer transport.Release(t)
+	defer func() {
+		_ = transport.Release(t)
+	}()
 
 	var res *bytes.Buffer
 	res, err = r.Client.Get(u.String(), clientOpts...)

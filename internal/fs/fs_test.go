@@ -581,7 +581,7 @@ func TestIsSymlink(t *testing.T) {
 func cleanUpDir(dir string) {
 	if runtime.GOOS == "windows" {
 		mu.Lock()
-		exec.Command(`taskkill`, `/F`, `/IM`, `git.exe`).Run()
+		_ = exec.Command(`taskkill`, `/F`, `/IM`, `git.exe`).Run()
 		mu.Unlock()
 	}
 	if dir != "" {
