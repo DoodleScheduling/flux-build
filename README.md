@@ -64,7 +64,7 @@ docker pull ghcr.io/doodlescheduling/flux-build:v0
 | `--fail-fast`  | `FAIL_FAST` | `false` | Exit early if an error occured |
 | `--allow-failure`  | `ALLOW_FAILURE` | `false` | Do not exit > 0 if an error occured |
 | `--cache-dir`  | `CACHE_DIR`  | `` | Cache directory (for repositorieries, charts) |
-| `--api-versions` | `API_VERSIONS` | Kubernetes api versions used for Capabilities.APIVersions |
+| `--api-versions` | `API_VERSIONS` | `` | Kubernetes api versions used for Capabilities.APIVersions (See helm help) |
 | `--kube-version`  | `KUBE_VERSION` | `1.27.0` | Kubernetes version (Some helm charts validate manifests against a specific kubernetes version) |
 | `--output`  | `OUTPUT` | `/dev/stdout` | Path to output file |
 
