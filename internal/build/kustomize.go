@@ -3,7 +3,6 @@ package build
 import (
 	"context"
 	"fmt"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 
@@ -121,7 +120,7 @@ func (k *Kustomize) createKustomization(path string, fSys filesys.FileSystem, rf
 		return err
 	}
 
-	return ioutil.WriteFile(kfile, kd, os.ModePerm)
+	return os.WriteFile(kfile, kd, os.ModePerm)
 }
 
 func (k *Kustomize) detectResources(fSys filesys.FileSystem, rf *resource.Factory, base string, recursive bool) ([]string, error) {

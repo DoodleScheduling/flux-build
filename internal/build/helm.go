@@ -52,7 +52,6 @@ type HelmOpts struct {
 	CacheDir    string
 	KubeVersion *chartutil.KubeVersion
 	Getters     helmgetter.Providers
-	timeout     time.Duration
 	Decoder     runtime.Decoder
 }
 
@@ -76,10 +75,10 @@ func NewHelmBuilder(opts HelmOpts) *Helm {
 
 	if opts.Decoder == nil {
 		scheme := runtime.NewScheme()
-		helmv1.AddToScheme(scheme)
-		sourcev1beta2.AddToScheme(scheme)
-		sourcev1beta1.AddToScheme(scheme)
-		corev1.AddToScheme(scheme)
+		_ = helmv1.AddToScheme(scheme)
+		_ = sourcev1beta2.AddToScheme(scheme)
+		_ = sourcev1beta1.AddToScheme(scheme)
+		_ = corev1.AddToScheme(scheme)
 
 		codecFactory := serializer.NewCodecFactory(scheme)
 		deserializer := codecFactory.UniversalDeserializer()
@@ -486,19 +485,19 @@ func (h *Helm) buildFromHelmRepository(ctx context.Context, obj *sourcev1beta2.H
 		// this is needed because otherwise the credentials are stored in ~/.docker/config.json.
 		// TODO@souleb: remove this once the registry move to Oras v2
 		// or rework to enable reusing credentials to avoid the unneccessary handshake operations
-		registryClient, credentialsFile, err := registry.ClientGenerator(loginOpt != nil)
+		registryClient, _, err := registry.ClientGenerator(loginOpt != nil)
 		if err != nil {
 			return fmt.Errorf("failed to construct Helm client: %w", err)
 		}
 
-		if credentialsFile != "" {
+		/*if credentialsFile != "" {
 			defer func() {
 				if err := os.Remove(credentialsFile); err != nil {
 					//r.eventLogf(ctx, obj, corev1.EventTypeWarning, meta.FailedReason,
 					//		"failed to delete temporary credentials file: %s", err)
 				}
 			}()
-		}
+		}*/
 
 		var verifiers []soci.Verifier
 		/*if obj.Spec.Verify != nil {
@@ -540,11 +539,11 @@ func (h *Helm) buildFromHelmRepository(ctx context.Context, obj *sourcev1beta2.H
 
 		// NB: this needs to be deferred first, as otherwise the Index will disappear
 		// before we had a chance to cache it.
-		defer func() {
+		/*defer func() {
 			if err := httpChartRepo.Clear(); err != nil {
-				//ctrl.LoggerFrom(ctx).Error(err, "failed to clear Helm repository index")
+				ctrl.LoggerFrom(ctx).Error(err, "failed to clear Helm repository index")
 			}
-		}()
+		}()*/
 
 		// Attempt to load the index from the cache.
 		/*if r.Cache != nil {
@@ -607,7 +606,7 @@ func TempPathForObj(dir, suffix string, obj *sourcev1beta2.HelmChart) string {
 		dir = os.TempDir()
 	}
 	randBytes := make([]byte, 16)
-	rand.Read(randBytes)
+	_, _ = rand.Read(randBytes)
 	return filepath.Join(dir, pattern(obj)+hex.EncodeToString(randBytes)+suffix)
 }
 

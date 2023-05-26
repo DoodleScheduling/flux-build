@@ -47,7 +47,7 @@ func Empty() *Rules {
 //
 // Ignore all dotfiles in "templates/"
 func (r *Rules) AddDefaults() {
-	r.parseRule(`templates/.?*`)
+	_ = r.parseRule(`templates/.?*`)
 }
 
 // ParseFile parses a helmignore file and returns the *Rules.

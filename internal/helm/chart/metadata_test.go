@@ -135,7 +135,7 @@ func TestLoadChartMetadataFromDir(t *testing.T) {
 
 	// Create a chart file that exceeds the max chart file size.
 	tmpDir := t.TempDir()
-	copy.Copy("../testdata/charts/helmchart", tmpDir)
+	_ = copy.Copy("../testdata/charts/helmchart", tmpDir)
 	bigRequirementsFile := filepath.Join(tmpDir, "requirements.yaml")
 	data := make([]byte, helm.MaxChartFileSize+10)
 	g.Expect(os.WriteFile(bigRequirementsFile, data, 0o640)).ToNot(HaveOccurred())
