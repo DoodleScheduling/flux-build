@@ -5,6 +5,8 @@ builds:
   binary: flux-build
   goos:
   - linux
+  - darwin
+  - windows
   env:
   - CGO_ENABLED=0
 
