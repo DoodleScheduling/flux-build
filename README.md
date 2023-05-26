@@ -19,6 +19,7 @@ Like for a flux2 kustomization it automatically creates the kustomize.yaml if no
 * Tests if a folder recursively can be kustomized
 * Templates all HelmReleases from the configured source
 * Supports HelmRelease in-line values, ConfigMaps and postRender patches
+* Made to work without accessing any kubernetes clusters
 
 The built manifests can be used for further tests like kubeconform tests, kyverno checks and other tooling or just to inspect
 locally how manifests will look like after installing the HelmRelease. Basically the flux way for `helm template`.
@@ -33,7 +34,7 @@ Which will dump all manifests to stdout.
 It is also possible to chain multiple paths, this is useful in cases one HelmRelease should be templated but the values and or the source are in a different directory/kustomize overlay.
 
 ```
-flux-build path/to/overlay /path/to/helmreposiories /path/to/configmapvalues
+flux-build --workers=50 path/to/overlay /path/to/helmreposiories /path/to/configmapvalues
 ```
 
 The rendering also works if a single path to a helmrelease is given:
