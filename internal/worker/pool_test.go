@@ -20,8 +20,8 @@ func TestWorkerPoolCap(t *testing.T) {
 	}
 
 	wpCPU := New(context.Background(), PoolOptions{
-    Workers: runtime.NumCPU(),
-  })
+		Workers: runtime.NumCPU(),
+	})
 
 	defer wpCPU.Close()
 	if c := wpCPU.Cap(); c != runtime.NumCPU() {
