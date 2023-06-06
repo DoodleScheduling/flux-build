@@ -2,7 +2,6 @@ package worker
 
 import (
 	"context"
-	"fmt"
 	"sync"
 )
 
@@ -19,30 +18,35 @@ type PoolOptions struct {
 }
 
 type pool struct {
-	opts    PoolOptions
 	wgTasks sync.WaitGroup
 	wgErr   sync.WaitGroup
 	tasks   chan Task
 	err     chan error
+	workers chan struct{}
 	ctx     context.Context
 	lastErr error
+	cancel  context.CancelFunc
 }
 
-func NewPool(opts PoolOptions) *pool {
-	if opts.Workers == 0 {
-		opts.Workers = 1
+func New(ctx context.Context, opts PoolOptions) *pool {
+	ctx, cancel := context.WithCancel(ctx)
+
+	p := &pool{
+		cancel:  cancel,
+		workers: make(chan struct{}, opts.Workers),
+		tasks:   make(chan Task),
+		err:     make(chan error, opts.Workers),
+		ctx:     ctx,
 	}
 
-	return &pool{
-		opts:  opts,
-		tasks: make(chan Task, opts.Workers),
-		err:   make(chan error, opts.Workers),
-	}
+	return p.start()
 }
 
 type Task func(ctx context.Context) error
 
 func (p *pool) Push(task Task) {
+	p.wgTasks.Add(1)
+
 	if p.ctx.Err() != nil {
 		return
 	}
@@ -50,41 +54,53 @@ func (p *pool) Push(task Task) {
 	p.tasks <- task
 }
 
-func (p *pool) Start(ctx context.Context) *pool {
-	p.ctx = ctx
-	for i := 0; i < p.opts.Workers; i++ {
-		p.wgTasks.Add(1)
-		go func() {
-			defer p.wgTasks.Done()
+// Cap returns the concurrent workers capacity, see New().
+func (p *pool) Cap() int {
+	return cap(p.workers)
+}
 
-			for {
-				select {
-				case <-ctx.Done():
-					for task := range p.tasks {
-						fmt.Printf("build task %#v\n", task)
-						if task == nil {
-							return
-						}
+// Len returns the count of concurrent workers currently running.
+func (p *pool) Len() int {
+	return len(p.workers)
+}
 
-						p.err <- task(ctx)
-					}
+// Close closes all channels
+func (p *pool) Close() {
+	p.cancel()
+	close(p.tasks)
+	p.wgTasks.Wait()
+	close(p.err)
+	p.wgErr.Wait()
+}
 
-					return
-
-				case task, ok := <-p.tasks:
-					if !ok {
+func (p *pool) start() *pool {
+	go func() {
+		for {
+			select {
+			case <-p.ctx.Done():
+				for task := range p.tasks {
+					if task == nil {
 						return
 					}
 
-					if ctx.Err() != nil {
-						return
-					}
-
-					p.err <- task(ctx)
+					p.runTask(task)
 				}
+
+				return
+
+			case task, ok := <-p.tasks:
+				if !ok {
+					return
+				}
+
+				if p.ctx.Err() != nil {
+					return
+				}
+
+				p.runTask(task)
 			}
-		}()
-	}
+		}
+	}()
 
 	p.wgErr.Add(1)
 	go func() {
@@ -92,7 +108,7 @@ func (p *pool) Start(ctx context.Context) *pool {
 
 		for {
 			select {
-			case <-ctx.Done():
+			case <-p.ctx.Done():
 				return
 
 			case err, ok := <-p.err:
@@ -110,6 +126,17 @@ func (p *pool) Start(ctx context.Context) *pool {
 	return p
 }
 
+func (p *pool) runTask(task Task) {
+	p.workers <- struct{}{}
+
+	go func() {
+		defer p.wgTasks.Done()
+		p.err <- task(p.ctx)
+		<-p.workers
+	}()
+}
+
+// Wait blocks until the task queue is drained
 func (p *pool) Wait() error {
 	close(p.tasks)
 	p.wgTasks.Wait()
