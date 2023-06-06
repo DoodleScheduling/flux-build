@@ -41,29 +41,21 @@ func (a *Action) Run(ctx context.Context) error {
 		return err
 	}
 
-	helmResultPool := worker.NewPool(
-		worker.PoolOptions{
-			Workers: 1,
-		},
-	).Start(ctx)
+	helmResultPool := worker.New(ctx, worker.PoolOptions{
+		Workers: 1,
+	})
 
-	kustomizePool := worker.NewPool(
-		worker.PoolOptions{
-			Workers: len(a.Paths),
-		},
-	).Start(ctx)
+	kustomizePool := worker.New(ctx, worker.PoolOptions{
+		Workers: len(a.Paths),
+	})
 
-	helmPool := worker.NewPool(
-		worker.PoolOptions{
-			Workers: a.Workers,
-		},
-	).Start(ctx)
+	helmPool := worker.New(ctx, worker.PoolOptions{
+		Workers: a.Workers,
+	})
 
-	resourcePool := worker.NewPool(
-		worker.PoolOptions{
-			Workers: 1,
-		},
-	).Start(ctx)
+	resourcePool := worker.New(ctx, worker.PoolOptions{
+		Workers: 1,
+	})
 
 	resources := make(chan resmap.ResMap, len(a.Paths))
 	manifests := make(chan []byte, a.Workers)

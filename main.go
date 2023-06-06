@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"os"
+	"runtime"
 	"strings"
 
 	"github.com/doodlescheduling/flux-build/internal/action"
@@ -19,7 +20,7 @@ var (
 	log          logr.Logger
 	allowFailure bool
 	failFast     bool
-	workers      int = 1
+	workers      int = runtime.NumCPU()
 	output       string
 	apiVersions  []string
 	cacheDir     string

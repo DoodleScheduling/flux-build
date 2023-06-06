@@ -60,7 +60,7 @@ docker pull ghcr.io/doodlescheduling/flux-build:v0
 | Flag  | Env | Default | Description |
 | ------------- | ------------- | ------------- | ------------- |
 | ``  | `PATHS`  | `` | **REQUIRED**: One or more paths comma separated to kustomize |
-| `--workers`  | `WORKERS`  | `1` | Workers used to template the HelmReleases. Greatly improves speed if there are many HelmReleases |
+| `--workers`  | `WORKERS`  | `Number of CPU cores` | Workers used to template the HelmReleases. Greatly improves speed if there are many HelmReleases |
 | `--fail-fast`  | `FAIL_FAST` | `false` | Exit early if an error occured |
 | `--allow-failure`  | `ALLOW_FAILURE` | `false` | Do not exit > 0 if an error occured |
 | `--cache-dir`  | `CACHE_DIR`  | `` | Cache directory (for repositorieries, charts) |
