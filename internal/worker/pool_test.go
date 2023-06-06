@@ -19,7 +19,9 @@ func TestWorkerPoolCap(t *testing.T) {
 		t.Errorf("got %d; want %d", c, 1)
 	}
 
-	wpCPU := New(context.Background(), PoolOptions{})
+	wpCPU := New(context.Background(), PoolOptions{
+    Workers: runtime.NumCPU(),
+  })
 
 	defer wpCPU.Close()
 	if c := wpCPU.Cap(); c != runtime.NumCPU() {
