@@ -15,7 +15,7 @@ require (
 	github.com/docker/cli v23.0.6+incompatible
 	github.com/drone/envsubst v1.0.3
 	github.com/fluxcd/helm-controller/api v0.33.0
-	github.com/fluxcd/pkg/apis/kustomize v1.0.0
+	github.com/fluxcd/pkg/apis/kustomize v1.1.1
 	github.com/fluxcd/pkg/oci v0.27.0
 	github.com/fluxcd/pkg/runtime v0.38.1
 	github.com/fluxcd/pkg/version v0.2.2
