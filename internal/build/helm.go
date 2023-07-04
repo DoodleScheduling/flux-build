@@ -217,7 +217,12 @@ func (h *Helm) renderRelease(ctx context.Context, hr helmv1.HelmRelease, values 
 	client.ReleaseName = hr.GetReleaseName()
 	client.Namespace = ns
 	client.DryRun = true
+
 	client.IncludeCRDs = true
+	if hr.Spec.Install != nil && hr.Spec.Install.SkipCRDs {
+		client.IncludeCRDs = false
+	}
+
 	client.KubeVersion = h.opts.KubeVersion
 	client.ClientOnly = true
 	client.Timeout = hr.Spec.GetInstall().GetTimeout(hr.GetTimeout()).Duration
