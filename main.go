@@ -22,7 +22,7 @@ var (
 	failFast     bool
 	workers      int = runtime.NumCPU()
 	output       string
-	apiVersions  []string
+	apiVersions  string
 	cacheDir     string
 	kubeVersion  string
 )
@@ -46,7 +46,7 @@ func main() {
 	flag.IntVar(&workers, "workers", workers, "Workers used to template the HelmReleases. Greatly improves speed if there are many HelmReleases")
 	flag.StringVar(&cacheDir, "cache-dir", cacheDir, "Cache directory (for repositorieries, charts)")
 	flag.StringVar(&kubeVersion, "kube-version", kubeVersion, "Kubernetes version (Some helm charts validate manifests against a specific kubernetes version)")
-	flag.StringArrayVar(&apiVersions, "api-versions", apiVersions, "Kubernetes api versions used for Capabilities.APIVersions")
+	flag.StringVar(&apiVersions, "api-versions", apiVersions, "Kubernetes api versions used for Capabilities.APIVersions (Comma separated)")
 	flag.StringVar(&output, "output", output, "Path to output file")
 	flag.Parse()
 
@@ -95,7 +95,7 @@ func main() {
 		FailFast:     viper.GetBool("fail-fast"),
 		Workers:      viper.GetInt("workers"),
 		CacheDir:     viper.GetString("cache-dir"),
-		APIVersions:  viper.GetStringSlice("api-versions"),
+		APIVersions:  strings.Split(viper.GetString("api-versions"), ","),
 		Paths:        paths,
 		KubeVersion:  kubeVersion,
 		Output:       output,
