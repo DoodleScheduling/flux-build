@@ -35,17 +35,32 @@ func (k *postRendererNamespace) Run(renderedManifests *bytes.Buffer) (modifiedMa
 		return nil, err
 	}
 
+	resWithNamespace := resmap.New()
+	resWithoutNamespace := resmap.New()
+
+	for _, res := range resMap.Resources() {
+		if res.GetNamespace() == "" {
+			_ = resWithoutNamespace.Append(res)
+		} else {
+			_ = resWithNamespace.Append(res)
+		}
+	}
+
 	namespaceTransformer := builtins.NamespaceTransformerPlugin{
 		ObjectMeta: types.ObjectMeta{
 			Namespace: k.namespace,
 		},
 	}
 
-	if err := namespaceTransformer.Transform(resMap); err != nil {
+	if err := namespaceTransformer.Transform(resWithoutNamespace); err != nil {
 		return nil, err
 	}
 
-	yaml, err := resMap.AsYaml()
+	for _, res := range resWithoutNamespace.Resources() {
+		_ = resWithNamespace.Append(res)
+	}
+
+	yaml, err := resWithNamespace.AsYaml()
 	if err != nil {
 		return nil, err
 	}
