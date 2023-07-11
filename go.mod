@@ -31,7 +31,7 @@ require (
 	github.com/spf13/pflag v1.0.5
 	github.com/spf13/viper v1.15.0
 	go.uber.org/zap v1.24.0
-	golang.org/x/sync v0.2.0
+	golang.org/x/sync v0.3.0
 	helm.sh/helm/v3 v3.11.3
 	k8s.io/api v0.27.3
 	k8s.io/apiextensions-apiserver v0.27.3
