@@ -137,7 +137,7 @@ func (h *Helm) Build(ctx context.Context, r *resource.Resource, db map[ref]*reso
 	}
 
 	chartBuild := &chart.Build{}
-	err = h.buildChart(ctx, repository, *hr, chartBuild)
+	err = h.buildChart(ctx, repository, *hr, chartBuild, db)
 	if err != nil {
 		return nil, err
 	}
@@ -176,7 +176,7 @@ func (h *Helm) getRepository(repository *resource.Resource) (runtime.Object, err
 	return r, nil
 }
 
-func (h *Helm) buildChart(ctx context.Context, repository runtime.Object, release helmv1.HelmRelease, b *chart.Build) error {
+func (h *Helm) buildChart(ctx context.Context, repository runtime.Object, release helmv1.HelmRelease, b *chart.Build, db map[ref]*resource.Resource) error {
 	chart := &sourcev1beta2.HelmChart{
 		Spec: sourcev1beta2.HelmChartSpec{
 			Chart:   release.Spec.Chart.Spec.Chart,
@@ -194,7 +194,7 @@ func (h *Helm) buildChart(ctx context.Context, repository runtime.Object, releas
 
 	switch repository := repository.(type) {
 	case *sourcev1beta2.HelmRepository:
-		return h.buildFromHelmRepository(ctx, chart, repository, b)
+		return h.buildFromHelmRepository(ctx, chart, repository, b, db)
 
 	}
 
@@ -386,20 +386,35 @@ func (h *Helm) composeValues(ctx context.Context, db map[ref]*resource.Resource,
 	return transform.MergeMaps(result, hr.GetValues()), nil
 }
 
-func (h *Helm) getHelmRepositorySecret(ctx context.Context, repository *sourcev1beta2.HelmRepository) (*corev1.Secret, error) {
-	//if repository.Spec.SecretRef == nil {
-	return nil, nil
-	//}
-	/*name := types.NamespacedName{
-		Namespace: repository.GetNamespace(),
+func (h *Helm) getHelmRepositorySecret(ctx context.Context, repository *sourcev1beta2.HelmRepository, db map[ref]*resource.Resource) (*corev1.Secret, error) {
+	if repository.Spec.SecretRef == nil {
+		return nil, nil
+	}
+
+	lookupRef := ref{
+		GroupKind: schema.GroupKind{
+			Group: "",
+			Kind:  "Secret",
+		},
 		Name:      repository.Spec.SecretRef.Name,
+		Namespace: repository.ObjectMeta.Namespace,
 	}
-	var secret corev1.Secret
-	err := r.Client.Get(ctx, name, &secret)
-	if err != nil {
-		return nil, err
+
+	if secret, ok := db[lookupRef]; ok {
+		raw, err := secret.AsYAML()
+		if err != nil {
+			return nil, err
+		}
+
+		obj, _, err := h.opts.Decoder.Decode(raw, nil, nil)
+		if err != nil {
+			return nil, err
+		}
+
+		return obj.(*corev1.Secret), nil
 	}
-	return &secret, nil*/
+
+	return nil, fmt.Errorf("no repository secret `%v` found for helmrepository %s/%s", lookupRef, repository.Namespace, repository.Name)
 }
 
 func (h *Helm) clientOptionsFromSecret(secret *corev1.Secret, normalizedURL string) ([]helmgetter.Option, *tls.Config, error) {
@@ -422,7 +437,7 @@ func (h *Helm) clientOptionsFromSecret(secret *corev1.Secret, normalizedURL stri
 // In case of a failure it records v1beta2.FetchFailedCondition on the chart
 // object, and returns early.
 func (h *Helm) buildFromHelmRepository(ctx context.Context, obj *sourcev1beta2.HelmChart,
-	repo *sourcev1beta2.HelmRepository, b *chart.Build) error {
+	repo *sourcev1beta2.HelmRepository, b *chart.Build, db map[ref]*resource.Resource) error {
 	var (
 		tlsConfig     *tls.Config
 		authenticator authn.Authenticator
@@ -445,7 +460,7 @@ func (h *Helm) buildFromHelmRepository(ctx context.Context, obj *sourcev1beta2.H
 		helmgetter.WithPassCredentialsAll(repo.Spec.PassCredentials),
 	}
 
-	if secret, err := h.getHelmRepositorySecret(ctx, repo); secret != nil || err != nil {
+	if secret, err := h.getHelmRepositorySecret(ctx, repo, db); secret != nil || err != nil {
 		if err != nil {
 			return err
 		}
