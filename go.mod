@@ -14,8 +14,8 @@ require (
 	github.com/cyphar/filepath-securejoin v0.2.3
 	github.com/docker/cli v23.0.6+incompatible
 	github.com/drone/envsubst v1.0.3
-	github.com/fluxcd/helm-controller/api v0.33.0
-	github.com/fluxcd/pkg/apis/kustomize v1.0.0
+	github.com/fluxcd/helm-controller/api v0.35.0
+	github.com/fluxcd/pkg/apis/kustomize v1.1.1
 	github.com/fluxcd/pkg/oci v0.27.0
 	github.com/fluxcd/pkg/runtime v0.38.1
 	github.com/fluxcd/pkg/version v0.2.2
@@ -132,7 +132,7 @@ require (
 	github.com/exponent-io/jsonpath v0.0.0-20210407135951-1de76d718b3f // indirect
 	github.com/fatih/color v1.13.0 // indirect
 	github.com/fluxcd/pkg/apis/acl v0.1.0 // indirect
-	github.com/fluxcd/pkg/apis/meta v1.1.0 // indirect
+	github.com/fluxcd/pkg/apis/meta v1.1.1 // indirect
 	github.com/fsnotify/fsnotify v1.6.0 // indirect
 	github.com/fullstorydev/grpcurl v1.8.7 // indirect
 	github.com/ghodss/yaml v1.0.0 // indirect
