@@ -16,13 +16,15 @@ While this is great the big feature is that it also includes all manifests templ
 
 Like for a flux2 kustomization it automatically creates the kustomize.yaml if none exists.
 
-* Tests if a folder recursively can be kustomized
-* Templates all HelmReleases from the configured source
-* Supports HelmRelease in-line values, ConfigMaps and postRender patches
+* Recursively kustomizes a folder
+* Templates all HelmReleases found
+* Supports all HelmRelease features including in-line values, ConfigMaps, Secrets and postRender patches
 * Made to work without accessing any kubernetes clusters
 
 The built manifests can be used for further tests like kubeconform tests, kyverno checks and other tooling or just to inspect
-locally how manifests will look like after installing the HelmRelease. Basically the flux way for `helm template`.
+locally how manifests will look like after installing the HelmRelease.
+
+flux-build basically behaves like `kustomize build` but supports HelmRelease templating in addition.
 
 ## Usage
 
@@ -95,7 +97,6 @@ jobs:
         OUTPUT: /dev/null
 ```
 
-
 ### Advanced example
 
 While a simple gitops pipeline just verifies if kustomizations can be built and HelmReleases installed a more advanced pipeline
@@ -162,6 +163,22 @@ jobs:
       run: |
         kyverno apply kyverno-policies -r ./build.yaml
 ```
+
+## Dealing with secrets
+
+Secrets are usually in an encrypted form and only available as v1.Secret on the cluster directly if following best GitOps practices.
+This means flux-build has not directly access to these secrets but some resources might still have a dependecy to them.
+
+It depends whether the secrets value is actually a hard dependency or a soft one. Example for hard dependencies are if the secret is used in HelmRepository
+as repository credentials.
+If flux-build is used on a ci build, a way to achieve this is to store the plain v1.Secret as a ci secret and inject it into the folder which gets 
+built by flux-build. Locally one might first need to pull the decrypted secret from the cluster.
+
+For soft dependencies meaning the actual secrets value is only required at runtime on the cluster but flux-build can use any value.
+To achieve this a good practice is to add a dummy secret which is available to flux-build but not synced to the cluster (Either by placing the dummies in a folder which is not targeted by a flux kustomization or by annotating
+the dummy secrets with `kustomize.toolkit.fluxcd.io/reconcile: disabled`).
+Examples for this case are usually if a HelmRelease refers to v1.Secrets as values. 
+
 
 ## License notice
 

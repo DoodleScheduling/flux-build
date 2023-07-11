@@ -302,54 +302,52 @@ func (h *Helm) composeValues(ctx context.Context, db map[ref]*resource.Resource,
 		namespacedName := types.NamespacedName{Namespace: hr.Namespace, Name: v.Name}
 		var valuesData []byte
 
-		switch v.Kind {
-		case "ConfigMap":
-			lookupRef := ref{
-				GroupKind: schema.GroupKind{
-					Group: "",
-					Kind:  "ConfigMap",
-				},
-				Name:      v.Name,
-				Namespace: hr.Namespace,
+		lookupRef := ref{
+			GroupKind: schema.GroupKind{
+				Group: "",
+				Kind:  v.Kind,
+			},
+			Name:      v.Name,
+			Namespace: hr.Namespace,
+		}
+		res, ok := db[lookupRef]
+		if !ok {
+			if !v.Optional {
+				return nil, fmt.Errorf("could not find values `%s.%s/%v` for helmrelease `%s/%s`", v.Kind, hr.GetNamespace(), v.Name, hr.GetNamespace(), hr.GetName())
+			} else {
+				continue
 			}
-			res, ok := db[lookupRef]
-			if !ok {
-				if !v.Optional {
-					return nil, fmt.Errorf("could not find values configmap `%s/%v` for helmrelease `%s/%s`", hr.GetNamespace(), v.Name, hr.GetNamespace(), hr.GetName())
-				} else {
-					continue
-				}
-			}
+		}
 
-			res.SetGvk(resid.Gvk{
-				Group:   "",
-				Version: "v1",
-				Kind:    "ConfigMap",
-			})
+		res.SetGvk(resid.Gvk{
+			Group:   "",
+			Version: "v1",
+			Kind:    v.Kind,
+		})
 
-			raw, err := res.AsYAML()
-			if err != nil {
-				return nil, fmt.Errorf("failed to marshal configmap as yaml: %w", err)
-			}
+		raw, err := res.AsYAML()
+		if err != nil {
+			return nil, fmt.Errorf("failed to marshal as yaml: %w", err)
+		}
 
-			obj, _, err := h.opts.Decoder.Decode(raw, nil, nil)
-			if err != nil {
-				return nil, fmt.Errorf("failed decode resource to helmrelease: %w", err)
-			}
+		obj, _, err := h.opts.Decoder.Decode(raw, nil, nil)
+		if err != nil {
+			return nil, fmt.Errorf("failed decode values as `v1.%s`: %w", v.Kind, err)
+		}
 
-			cm, ok := obj.(*corev1.ConfigMap)
-			if !ok {
-				return nil, fmt.Errorf("expected type %T", corev1.ConfigMap{})
-			}
-
-			if data, ok := cm.Data[v.GetValuesKey()]; !ok {
+		switch obj := obj.(type) {
+		case *corev1.ConfigMap:
+			if data, ok := obj.Data[v.GetValuesKey()]; !ok {
 				return nil, fmt.Errorf("missing key '%s' in %s '%s'", v.GetValuesKey(), v.Kind, namespacedName)
 			} else {
 				valuesData = []byte(data)
 			}
-		case "Secret":
-			fmt.Println("warning: secrets from value maps are not supported")
-			continue
+		case *corev1.Secret:
+			if data, ok := obj.Data[v.GetValuesKey()]; !ok {
+				return nil, fmt.Errorf("missing key '%s' in %s '%s'", v.GetValuesKey(), v.Kind, namespacedName)
+			} else {
+				valuesData = []byte(data)
+			}
 		default:
 			return nil, fmt.Errorf("unsupported ValuesReference kind '%s'", v.Kind)
 		}
