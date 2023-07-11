@@ -27,7 +27,7 @@ require (
 	github.com/opencontainers/go-digest v1.0.0
 	github.com/otiai10/copy v1.11.0
 	github.com/sigstore/cosign v1.13.1
-	github.com/sigstore/sigstore v1.5.2
+	github.com/sigstore/sigstore v1.7.1
 	github.com/spf13/pflag v1.0.5
 	github.com/spf13/viper v1.15.0
 	go.uber.org/zap v1.24.0
