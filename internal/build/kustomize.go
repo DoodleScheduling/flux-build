@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"sync"
 
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"sigs.k8s.io/kustomize/api/konfig"
@@ -16,6 +17,8 @@ import (
 	"sigs.k8s.io/kustomize/kyaml/filesys"
 	"sigs.k8s.io/yaml"
 )
+
+var kustomizeBuildMutex sync.Mutex
 
 type KustomizeOpts struct {
 	Path string
@@ -94,6 +97,9 @@ func (k *Kustomize) buildKustomization(path string) (resmap.ResMap, error) {
 		AddManagedbyLabel: false,
 		PluginConfig:      krusty.MakeDefaultOptions().PluginConfig,
 	}
+
+	kustomizeBuildMutex.Lock()
+	defer kustomizeBuildMutex.Unlock()
 
 	kustomizer := krusty.MakeKustomizer(buildOptions)
 	return kustomizer.Run(fs, path)
