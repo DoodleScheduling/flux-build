@@ -19,7 +19,7 @@ fmt:
 
 .PHONY: test
 test:
-	go test -coverprofile coverage.out -v ./...
+	go test -race -coverprofile coverage.out -v ./...
 
 .PHONY: e2e-test
 e2e-test: build
