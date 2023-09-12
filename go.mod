@@ -14,7 +14,7 @@ require (
 	github.com/cyphar/filepath-securejoin v0.2.4
 	github.com/docker/cli v23.0.6+incompatible
 	github.com/drone/envsubst v1.0.3
-	github.com/fluxcd/helm-controller/api v0.35.0
+	github.com/fluxcd/helm-controller/api v0.36.0
 	github.com/fluxcd/pkg/apis/kustomize v1.1.1
 	github.com/fluxcd/pkg/oci v0.29.0
 	github.com/fluxcd/pkg/runtime v0.42.0
@@ -34,7 +34,7 @@ require (
 	golang.org/x/sync v0.3.0
 	helm.sh/helm/v3 v3.11.3
 	k8s.io/api v0.27.4
-	k8s.io/apiextensions-apiserver v0.27.3
+	k8s.io/apiextensions-apiserver v0.27.4
 	k8s.io/apimachinery v0.27.4
 	k8s.io/helm v2.17.0+incompatible
 	sigs.k8s.io/kustomize/api v0.12.1
@@ -321,7 +321,7 @@ require (
 	gopkg.in/square/go-jose.v2 v2.6.0 // indirect
 	gopkg.in/yaml.v2 v2.4.0 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
-	k8s.io/apiserver v0.27.3 // indirect
+	k8s.io/apiserver v0.27.4 // indirect
 	k8s.io/cli-runtime v0.26.0 // indirect
 	k8s.io/client-go v0.27.4 // indirect
 	k8s.io/component-base v0.27.4 // indirect
