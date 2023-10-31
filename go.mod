@@ -14,7 +14,7 @@ require (
 	github.com/cyphar/filepath-securejoin v0.2.4
 	github.com/docker/cli v24.0.6+incompatible
 	github.com/drone/envsubst v1.0.3
-	github.com/fluxcd/helm-controller/api v0.36.0
+	github.com/fluxcd/helm-controller/api v0.36.2
 	github.com/fluxcd/pkg/apis/kustomize v1.1.1
 	github.com/fluxcd/pkg/oci v0.29.0
 	github.com/fluxcd/pkg/runtime v0.42.0
