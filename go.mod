@@ -12,7 +12,7 @@ replace github.com/docker/docker => github.com/docker/docker v20.10.25+incompati
 require (
 	github.com/Masterminds/semver/v3 v3.2.1
 	github.com/cyphar/filepath-securejoin v0.2.4
-	github.com/docker/cli v24.0.6+incompatible
+	github.com/docker/cli v24.0.7+incompatible
 	github.com/drone/envsubst v1.0.3
 	github.com/fluxcd/helm-controller/api v0.36.0
 	github.com/fluxcd/pkg/apis/kustomize v1.1.1
