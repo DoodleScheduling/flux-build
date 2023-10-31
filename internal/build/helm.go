@@ -117,13 +117,17 @@ func (h *Helm) Build(ctx context.Context, r *resource.Resource, db map[ref]*reso
 		return nil, fmt.Errorf("expected type %T", helmv1.HelmRelease{})
 	}
 
+	namespace := hr.Spec.Chart.Spec.SourceRef.Namespace
+	if len(namespace) == 0 {
+		namespace = hr.ObjectMeta.Namespace
+	}
 	lookupRef := ref{
 		GroupKind: schema.GroupKind{
 			Group: sourcev1beta2.GroupVersion.Group,
 			Kind:  hr.Spec.Chart.Spec.SourceRef.Kind,
 		},
 		Name:      hr.Spec.Chart.Spec.SourceRef.Name,
-		Namespace: hr.Spec.Chart.Spec.SourceRef.Namespace,
+		Namespace: namespace,
 	}
 	source, ok := db[lookupRef]
 
@@ -219,7 +223,7 @@ func (h *Helm) renderRelease(ctx context.Context, hr helmv1.HelmRelease, values 
 	client.DryRun = true
 
 	client.IncludeCRDs = true
-	if hr.Spec.Install != nil && hr.Spec.Install.SkipCRDs {
+	if hr.Spec.Install != nil && (hr.Spec.Install.SkipCRDs || hr.Spec.Install.CRDs == helmv1.Skip) {
 		client.IncludeCRDs = false
 	}
 
