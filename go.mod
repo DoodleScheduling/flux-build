@@ -7,7 +7,7 @@ go 1.20
 //
 // Check again when oras.land/oras-go is updated to >=v2.0.0, which is a
 // dependency of Helm.
-replace github.com/docker/docker => github.com/docker/docker v20.10.25+incompatible
+replace github.com/docker/docker => github.com/docker/docker v20.10.26+incompatible
 
 require (
 	github.com/Masterminds/semver/v3 v3.2.1
