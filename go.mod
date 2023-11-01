@@ -30,7 +30,7 @@ require (
 	github.com/sigstore/sigstore v1.5.2
 	github.com/spf13/pflag v1.0.5
 	github.com/spf13/viper v1.15.0
-	go.uber.org/zap v1.25.0
+	go.uber.org/zap v1.26.0
 	golang.org/x/sync v0.3.0
 	helm.sh/helm/v3 v3.11.3
 	k8s.io/api v0.27.4
@@ -95,7 +95,6 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/sts v1.19.2 // indirect
 	github.com/aws/smithy-go v1.13.5 // indirect
 	github.com/awslabs/amazon-ecr-credential-helper/ecr-login v0.0.0-20221004211355-a250ad2ca1e3 // indirect
-	github.com/benbjohnson/clock v1.3.0 // indirect
 	github.com/beorn7/perks v1.0.1 // indirect
 	github.com/bgentry/speakeasy v0.1.0 // indirect
 	github.com/blang/semver v3.5.1+incompatible // indirect
