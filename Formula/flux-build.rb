@@ -5,20 +5,20 @@
 class FluxBuild < Formula
   desc "Build kustomize overlays with flux2 HelmRelease support"
   homepage "https://github.com/DoodleScheduling/flux-build"
-  version "0.1.2"
+  version "0.1.3"
 
   on_macos do
     if Hardware::CPU.intel?
-      url "https://github.com/DoodleScheduling/flux-build/releases/download/v0.1.2/flux-build_0.1.2_darwin_amd64.tar.gz"
-      sha256 "c19beb002389ee617fa41b3f8a5de9b509fb69bf816a4e629e37edf1cb84f33b"
+      url "https://github.com/DoodleScheduling/flux-build/releases/download/v0.1.3/flux-build_0.1.3_darwin_amd64.tar.gz"
+      sha256 "e593ee32583e8689b048864736acc526f9fd542014f921451cc6ef78a8c57465"
 
       def install
         bin.install "flux-build"
       end
     end
     if Hardware::CPU.arm?
-      url "https://github.com/DoodleScheduling/flux-build/releases/download/v0.1.2/flux-build_0.1.2_darwin_arm64.tar.gz"
-      sha256 "93dede26370445d582911d42159b2a266fb13026413e1d3306620c2df1ae4795"
+      url "https://github.com/DoodleScheduling/flux-build/releases/download/v0.1.3/flux-build_0.1.3_darwin_arm64.tar.gz"
+      sha256 "8a53ac58ade4bda8cf259aa42f00e11a183c521f2393d2dbf499568349e2b176"
 
       def install
         bin.install "flux-build"
@@ -28,16 +28,16 @@ class FluxBuild < Formula
 
   on_linux do
     if Hardware::CPU.arm? && Hardware::CPU.is_64_bit?
-      url "https://github.com/DoodleScheduling/flux-build/releases/download/v0.1.2/flux-build_0.1.2_linux_arm64.tar.gz"
-      sha256 "3c02292fdba773b8c312c4dcd79ae5ff6ea1a96951a09438bade41329a3514fa"
+      url "https://github.com/DoodleScheduling/flux-build/releases/download/v0.1.3/flux-build_0.1.3_linux_arm64.tar.gz"
+      sha256 "4b21ff25a503c2084927edce6d01e59f8be632ee7fb58996ff1a9898eea58f57"
 
       def install
         bin.install "flux-build"
       end
     end
     if Hardware::CPU.intel?
-      url "https://github.com/DoodleScheduling/flux-build/releases/download/v0.1.2/flux-build_0.1.2_linux_amd64.tar.gz"
-      sha256 "d3895c33b9d53f80c247362989f70186a7d04ff92ea611d3b44172dc67d32853"
+      url "https://github.com/DoodleScheduling/flux-build/releases/download/v0.1.3/flux-build_0.1.3_linux_amd64.tar.gz"
+      sha256 "e143c399773b9faa750f4036f5654f9b9c96bf06a44d9062affb4b4b78e0af0d"
 
       def install
         bin.install "flux-build"
