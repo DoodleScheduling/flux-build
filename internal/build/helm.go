@@ -347,10 +347,12 @@ func (h *Helm) composeValues(ctx context.Context, db map[ref]*resource.Resource,
 				valuesData = []byte(data)
 			}
 		case *corev1.Secret:
-			if data, ok := obj.Data[v.GetValuesKey()]; !ok {
-				return nil, fmt.Errorf("missing key '%s' in %s '%s'", v.GetValuesKey(), v.Kind, namespacedName)
-			} else {
+			if data, ok := obj.Data[v.GetValuesKey()]; ok {
+				valuesData = data
+			} else if data, ok := obj.StringData[v.GetValuesKey()]; ok {
 				valuesData = []byte(data)
+			} else {
+				return nil, fmt.Errorf("missing key '%s' in %s '%s'", v.GetValuesKey(), v.Kind, namespacedName)
 			}
 		default:
 			return nil, fmt.Errorf("unsupported ValuesReference kind '%s'", v.Kind)
