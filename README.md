@@ -69,6 +69,7 @@ docker pull ghcr.io/doodlescheduling/flux-build:v0
 | `--api-versions` | `API_VERSIONS` | `` | Kubernetes api versions used for Capabilities.APIVersions (See helm help) |
 | `--kube-version`  | `KUBE_VERSION` | `1.27.0` | Kubernetes version (Some helm charts validate manifests against a specific kubernetes version) |
 | `--output`  | `OUTPUT` | `/dev/stdout` | Path to output file |
+| `--include-helm-hooks` | `INCLUDE_HELM_HOOKS` | `false` | Include helm hooks in the output |
 
 
 ## Github Action

@@ -14,15 +14,16 @@ import (
 )
 
 type Action struct {
-	Output       io.Writer
-	AllowFailure bool
-	FailFast     bool
-	Workers      int
-	CacheDir     string
-	Paths        []string
-	APIVersions  []string
-	KubeVersion  *chartutil.KubeVersion
-	Logger       logr.Logger
+	Output           io.Writer
+	AllowFailure     bool
+	FailFast         bool
+	Workers          int
+	CacheDir         string
+	Paths            []string
+	APIVersions      []string
+	IncludeHelmHooks bool
+	KubeVersion      *chartutil.KubeVersion
+	Logger           logr.Logger
 }
 
 func (a *Action) Run(ctx context.Context) error {
@@ -58,10 +59,11 @@ func (a *Action) Run(ctx context.Context) error {
 	})
 
 	resources := make(chan resmap.ResMap, len(a.Paths))
-	manifests := make(chan []byte, a.Workers)
+	manifests := make(chan resmap.ResMap, a.Workers)
 	helmBuilder := build.NewHelmBuilder(build.HelmOpts{
-		APIVersions: a.APIVersions,
-		KubeVersion: a.KubeVersion,
+		APIVersions:      a.APIVersions,
+		KubeVersion:      a.KubeVersion,
+		IncludeHelmHooks: a.IncludeHelmHooks,
 	})
 
 	helmResultPool.Push(worker.Task(func(ctx context.Context) error {
@@ -69,12 +71,18 @@ func (a *Action) Run(ctx context.Context) error {
 			select {
 			case <-ctx.Done():
 				return nil
-			case manifest, ok := <-manifests:
+			case index, ok := <-manifests:
 				if !ok {
 					return nil
 				}
 
-				_, err := a.Output.Write(append([]byte("---\n"), manifest...))
+				y, err := index.AsYaml()
+				if err != nil {
+					a.Logger.Error(err, "failed to encode as yaml")
+					return abort(err)
+				}
+
+				_, err = a.Output.Write(append([]byte("---\n"), y...))
 				if err != nil {
 
 					a.Logger.Error(err, "failed to write helm manifests to output")
@@ -89,15 +97,11 @@ func (a *Action) Run(ctx context.Context) error {
 		a.Logger.Info("build kustomize path", "path", p)
 
 		kustomizePool.Push(worker.Task(func(ctx context.Context) error {
-			k := build.NewKustomizeBuilder(build.KustomizeOpts{
-				Path: p,
-			})
-
-			if index, b, err := k.Build(ctx); err != nil {
+			if index, err := build.Kustomize(ctx, p); err != nil {
 				a.Logger.Error(err, "failed build kustomization", "path", p)
 				return abort(err)
 			} else {
-				manifests <- b
+				manifests <- index
 				resources <- index
 			}
 
@@ -140,7 +144,7 @@ func (a *Action) Run(ctx context.Context) error {
 		helmPool.Push(worker.Task(func(ctx context.Context) error {
 			a.Logger.Info("build helm release", "namespace", res.GetNamespace(), "name", res.GetName())
 
-			manifest, err := helmBuilder.Build(ctx, res, index)
+			index, err := helmBuilder.Build(ctx, res, index)
 			if err != nil {
 				a.Logger.Error(err, "failed build helmrelease", "namespace", res.GetNamespace(), "name", res.GetName())
 				return abort(err)
@@ -150,7 +154,7 @@ func (a *Action) Run(ctx context.Context) error {
 				return nil
 			}
 
-			manifests <- manifest
+			manifests <- index
 			return nil
 		}))
 	}

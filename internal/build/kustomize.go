@@ -7,7 +7,6 @@ import (
 	"path/filepath"
 	"sync"
 
-	"k8s.io/apimachinery/pkg/runtime/schema"
 	"sigs.k8s.io/kustomize/api/konfig"
 	"sigs.k8s.io/kustomize/api/krusty"
 	"sigs.k8s.io/kustomize/api/provider"
@@ -20,35 +19,7 @@ import (
 
 var kustomizeBuildMutex sync.Mutex
 
-type KustomizeOpts struct {
-	Path string
-}
-
-type Kustomize struct {
-	opts KustomizeOpts
-}
-
-func NewKustomizeBuilder(opts KustomizeOpts) *Kustomize {
-	return &Kustomize{
-		opts: opts,
-	}
-}
-
-func (k *Kustomize) Build(ctx context.Context) (resmap.ResMap, []byte, error) {
-	resourcesMap, err := k.buildKustomization(k.opts.Path)
-	if err != nil {
-		return nil, nil, fmt.Errorf("failed build kustomization: %w", err)
-	}
-
-	kustomizeBuild, err := resourcesMap.AsYaml()
-	if err != nil {
-		return nil, nil, fmt.Errorf("failed marshal resources as yaml: %w", err)
-	}
-
-	return resourcesMap, kustomizeBuild, err
-}
-
-func (k *Kustomize) buildKustomization(path string) (resmap.ResMap, error) {
+func Kustomize(ctx context.Context, path string) (resmap.ResMap, error) {
 	kfile := filepath.Join(path, konfig.DefaultKustomizationFileName())
 	fs := filesys.MakeFsOnDisk()
 
@@ -86,7 +57,7 @@ func (k *Kustomize) buildKustomization(path string) (resmap.ResMap, error) {
 		}()
 
 		pvd := provider.NewDefaultDepProvider()
-		err = k.createKustomization(path, fs, pvd.GetResourceFactory())
+		err = createKustomization(path, fs, pvd.GetResourceFactory())
 		if err != nil {
 			return nil, fmt.Errorf("failed create kustomization: %w", err)
 		}
@@ -105,7 +76,7 @@ func (k *Kustomize) buildKustomization(path string) (resmap.ResMap, error) {
 	return kustomizer.Run(fs, path)
 }
 
-func (k *Kustomize) createKustomization(path string, fSys filesys.FileSystem, rf *resource.Factory) error {
+func createKustomization(path string, fSys filesys.FileSystem, rf *resource.Factory) error {
 	kfile := filepath.Join(path, konfig.DefaultKustomizationFileName())
 	kus := kustypes.Kustomization{
 		TypeMeta: kustypes.TypeMeta{
@@ -114,7 +85,7 @@ func (k *Kustomize) createKustomization(path string, fSys filesys.FileSystem, rf
 		},
 	}
 
-	detected, err := k.detectResources(fSys, rf, path, true)
+	detected, err := detectResources(fSys, rf, path, true)
 	if err != nil {
 		return err
 	}
@@ -129,7 +100,7 @@ func (k *Kustomize) createKustomization(path string, fSys filesys.FileSystem, rf
 	return os.WriteFile(kfile, kd, os.ModePerm)
 }
 
-func (k *Kustomize) detectResources(fSys filesys.FileSystem, rf *resource.Factory, base string, recursive bool) ([]string, error) {
+func detectResources(fSys filesys.FileSystem, rf *resource.Factory, base string, recursive bool) ([]string, error) {
 	var paths []string
 
 	err := fSys.Walk(base, func(path string, info os.FileInfo, err error) error {
@@ -172,10 +143,4 @@ func (k *Kustomize) detectResources(fSys filesys.FileSystem, rf *resource.Factor
 	})
 
 	return paths, err
-}
-
-type ref struct {
-	schema.GroupKind
-	Name      string
-	Namespace string
 }
