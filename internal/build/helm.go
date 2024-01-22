@@ -42,17 +42,19 @@ import (
 	"k8s.io/apimachinery/pkg/runtime/serializer"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/helm/pkg/strvals"
+	"sigs.k8s.io/kustomize/api/resmap"
 	"sigs.k8s.io/kustomize/api/resource"
 	"sigs.k8s.io/kustomize/kyaml/resid"
 )
 
 type HelmOpts struct {
-	APIVersions []string
-	FailFast    bool
-	CacheDir    string
-	KubeVersion *chartutil.KubeVersion
-	Getters     helmgetter.Providers
-	Decoder     runtime.Decoder
+	APIVersions      []string
+	FailFast         bool
+	CacheDir         string
+	KubeVersion      *chartutil.KubeVersion
+	Getters          helmgetter.Providers
+	Decoder          runtime.Decoder
+	IncludeHelmHooks bool
 }
 
 type Helm struct {
@@ -90,7 +92,7 @@ func NewHelmBuilder(opts HelmOpts) *Helm {
 	}
 }
 
-func (h *Helm) Build(ctx context.Context, r *resource.Resource, db map[ref]*resource.Resource) ([]byte, error) {
+func (h *Helm) Build(ctx context.Context, r *resource.Resource, db map[ref]*resource.Resource) (resmap.ResMap, error) {
 	r.SetGvk(resid.Gvk{
 		Group:   helmv1.GroupVersion.Group,
 		Version: helmv1.GroupVersion.Version,
@@ -156,7 +158,26 @@ func (h *Helm) Build(ctx context.Context, r *resource.Resource, db map[ref]*reso
 		return nil, err
 	}
 
-	return []byte(release.Manifest), nil
+	ksDir, err := os.MkdirTemp("", "helmrelease")
+	if err != nil {
+		return nil, err
+	}
+
+	err = os.WriteFile(filepath.Join(ksDir, "manifest.yaml"), []byte(release.Manifest), 0644)
+	if err != nil {
+		return nil, err
+	}
+
+	if h.opts.IncludeHelmHooks {
+		for i, hook := range release.Hooks {
+			err := os.WriteFile(filepath.Join(ksDir, fmt.Sprintf("hook_%d.yaml", i)), []byte(hook.Manifest), 0644)
+			if err != nil {
+				return nil, err
+			}
+		}
+	}
+
+	return Kustomize(ctx, ksDir)
 }
 
 func (h *Helm) getRepository(repository *resource.Resource) (runtime.Object, error) {

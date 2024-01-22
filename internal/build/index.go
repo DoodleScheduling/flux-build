@@ -28,3 +28,9 @@ func (r ResourceIndex) Push(resources []*resource.Resource) error {
 
 	return nil
 }
+
+type ref struct {
+	schema.GroupKind
+	Name      string
+	Namespace string
+}

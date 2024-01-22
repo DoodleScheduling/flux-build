@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"errors"
+	"log"
 	"os"
 	"runtime"
 	"strings"
@@ -10,54 +11,62 @@ import (
 	"github.com/doodlescheduling/flux-build/internal/action"
 	"github.com/go-logr/logr"
 	"github.com/go-logr/zapr"
+	"github.com/sethvargo/go-envconfig"
 	flag "github.com/spf13/pflag"
-	"github.com/spf13/viper"
 	"go.uber.org/zap"
 	"helm.sh/helm/v3/pkg/chartutil"
 )
 
+type Config struct {
+	Log struct {
+		Level    string `env:"LOG_LEVEL, default=info"`
+		Encoding string `env:"LOG_ENCODING, default=json"`
+	}
+	Output           string   `env:"OUTPUT, default=/dev/stdout"`
+	FailFast         bool     `env:"FAIL_FAST"`
+	IncludeHelmHooks bool     `env:"INCLUDE_HELM_HOOKS"`
+	AllowFailure     bool     `env:"ALLOW_FAILURE"`
+	Workers          int      `env:"WORKERS"`
+	APIVersions      []string `env:"API_VERSIONS"`
+	KubeVersion      string   `env:"KUBE_VERSION"`
+}
+
 var (
-	log          logr.Logger
-	allowFailure bool
-	failFast     bool
-	workers      int = runtime.NumCPU()
-	output       string
-	apiVersions  string
-	cacheDir     string
-	kubeVersion  string
+	config = &Config{}
 )
+
+func init() {
+	flag.StringVarP(&config.Log.Level, "log-level", "l", "", "Define the log level (default is warning) [debug,info,warn,error]")
+	flag.StringVarP(&config.Log.Encoding, "log-encoding", "e", "", "Define the log format (default is json) [json,console]")
+	flag.StringVarP(&config.Output, "output", "o", "", "Path to output")
+	flag.BoolVar(&config.AllowFailure, "allow-failure", false, "Do not exit > 0 if an error occured")
+	flag.BoolVar(&config.IncludeHelmHooks, "include-helm-hooks", false, "Include helm hooks in the output")
+	flag.BoolVar(&config.FailFast, "fail-fast", false, "Exit early if an error occured")
+	flag.IntVar(&config.Workers, "workers", 0, "Workers used to parse manifests")
+	flag.StringVarP(&config.KubeVersion, "kube-version", "", "", "Kubernetes version (Some helm charts validate manifests against a specific kubernetes version)")
+	flag.StringSliceVarP(&config.APIVersions, "api-versions", "", nil, "Kubernetes api versions used for Capabilities.APIVersions (Comma separated)")
+}
 
 func must(err error) {
 	if err != nil {
-		log.Error(err, "error encounterd")
-		os.Exit(1)
+		panic(err)
 	}
 }
 
 func main() {
-	zapLog, err := zap.NewDevelopment()
-	if err != nil {
-		panic(err)
+	ctx := context.TODO()
+	if err := envconfig.Process(ctx, config); err != nil {
+		log.Fatal(err)
 	}
 
-	log = zapr.NewLogger(zapLog)
-	flag.BoolVar(&allowFailure, "allow-failure", allowFailure, "Do not exit > 0 if an error occured")
-	flag.BoolVar(&failFast, "fail-fast", failFast, "Exit early if an error occured")
-	flag.IntVar(&workers, "workers", workers, "Workers used to template the HelmReleases. Greatly improves speed if there are many HelmReleases")
-	flag.StringVar(&cacheDir, "cache-dir", cacheDir, "Cache directory (for repositorieries, charts)")
-	flag.StringVar(&kubeVersion, "kube-version", kubeVersion, "Kubernetes version (Some helm charts validate manifests against a specific kubernetes version)")
-	flag.StringVar(&apiVersions, "api-versions", apiVersions, "Kubernetes api versions used for Capabilities.APIVersions (Comma separated)")
-	flag.StringVar(&output, "output", output, "Path to output file")
 	flag.Parse()
 
-	// Import flags into viper and bind them to env vars
-	// flags are converted to upper-case, - is replaced with _
-	err = viper.BindPFlags(flag.CommandLine)
-	must(err)
+	if config.Workers == 0 {
+		config.Workers = runtime.NumCPU()
+	}
 
-	replacer := strings.NewReplacer("-", "_")
-	viper.SetEnvKeyReplacer(replacer)
-	viper.AutomaticEnv()
+	logger, err := buildLogger()
+	must(err)
 
 	kubeVersion := &chartutil.KubeVersion{
 		Major:   "1",
@@ -74,8 +83,8 @@ func main() {
 		}
 	}
 
-	if viper.GetString("kube-version") != "" {
-		v, err := chartutil.ParseKubeVersion(viper.GetString("kube-version"))
+	if config.KubeVersion != "" {
+		v, err := chartutil.ParseKubeVersion(config.KubeVersion)
 		if err != nil {
 			must(err)
 		}
@@ -83,24 +92,37 @@ func main() {
 		kubeVersion = v
 	}
 
-	output := os.Stdout
-	if viper.GetString("output") != "" {
-		f, err := os.OpenFile(viper.GetString("output"), os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
-		must(err)
-		output = f
-	}
+	out, err := os.OpenFile(config.Output, os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0775)
+	must(err)
 
 	a := action.Action{
-		AllowFailure: viper.GetBool("allow-failure"),
-		FailFast:     viper.GetBool("fail-fast"),
-		Workers:      viper.GetInt("workers"),
-		CacheDir:     viper.GetString("cache-dir"),
-		APIVersions:  strings.Split(viper.GetString("api-versions"), ","),
-		Paths:        paths,
-		KubeVersion:  kubeVersion,
-		Output:       output,
-		Logger:       log,
+		AllowFailure:     config.AllowFailure,
+		FailFast:         config.FailFast,
+		Workers:          config.Workers,
+		APIVersions:      config.APIVersions,
+		Paths:            paths,
+		KubeVersion:      kubeVersion,
+		Output:           out,
+		IncludeHelmHooks: config.IncludeHelmHooks,
+		Logger:           logger,
 	}
 
 	must(a.Run(context.TODO()))
+}
+
+func buildLogger() (logr.Logger, error) {
+	logOpts := zap.NewDevelopmentConfig()
+	logOpts.Encoding = config.Log.Encoding
+
+	err := logOpts.Level.UnmarshalText([]byte(config.Log.Level))
+	if err != nil {
+		return logr.Discard(), err
+	}
+
+	zapLog, err := logOpts.Build()
+	if err != nil {
+		return logr.Discard(), err
+	}
+
+	return zapr.NewLogger(zapLog), nil
 }

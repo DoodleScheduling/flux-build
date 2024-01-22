@@ -9,10 +9,6 @@ metadata:
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  annotations:
-    internal.config.kubernetes.io/previousKinds: Deployment
-    internal.config.kubernetes.io/previousNames: podinfo
-    internal.config.kubernetes.io/previousNamespaces: default
   labels:
     app.kubernetes.io/managed-by: Helm
     app.kubernetes.io/name: podinfo
@@ -139,10 +135,6 @@ spec:
 apiVersion: v1
 kind: Service
 metadata:
-  annotations:
-    internal.config.kubernetes.io/previousKinds: Service
-    internal.config.kubernetes.io/previousNames: podinfo
-    internal.config.kubernetes.io/previousNamespaces: default
   labels:
     app.kubernetes.io/managed-by: Helm
     app.kubernetes.io/name: podinfo
