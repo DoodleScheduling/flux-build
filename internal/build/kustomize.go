@@ -136,7 +136,7 @@ func detectResources(fSys filesys.FileSystem, rf *resource.Factory, base string,
 			return err
 		}
 		if _, err := rf.SliceFromBytes(fContents); err != nil {
-			return nil
+			return err
 		}
 		paths = append(paths, normalizedPath)
 		return nil
