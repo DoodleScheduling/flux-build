@@ -74,7 +74,17 @@ func LoginOptionFromSecret(registryURL string, secret corev1.Secret) (authn.Keyc
 		username = authConfig.Username
 		password = authConfig.Password
 	} else {
-		username, password = string(secret.Data["username"]), string(secret.Data["password"])
+		if val, ok := secret.StringData["username"]; ok {
+			username = val
+		} else {
+			username = string(secret.Data["username"])
+		}
+
+		if val, ok := secret.StringData["password"]; ok {
+			password = val
+		} else {
+			password = string(secret.Data["password"])
+		}
 	}
 	switch {
 	case username == "" && password == "":
