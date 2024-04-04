@@ -1,6 +1,8 @@
 module github.com/doodlescheduling/flux-build
 
-go 1.20
+go 1.21
+
+toolchain go1.22.2
 
 // Required to keep oras.land/oras-go happy, as it will otherwise fail with
 // "assignment mismatch: 3 variables but registry.PingV2Registry returns 2 values"
@@ -12,7 +14,7 @@ replace github.com/docker/docker => github.com/docker/docker v20.10.26+incompati
 require (
 	github.com/Masterminds/semver/v3 v3.2.1
 	github.com/cyphar/filepath-securejoin v0.2.4
-	github.com/docker/cli v24.0.7+incompatible
+	github.com/docker/cli v24.0.9+incompatible
 	github.com/drone/envsubst v1.0.3
 	github.com/fluxcd/helm-controller/api v0.36.2
 	github.com/fluxcd/pkg/apis/kustomize v1.1.1
