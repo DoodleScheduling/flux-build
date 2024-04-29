@@ -12,7 +12,7 @@ rwildcard=$(foreach d,$(wildcard $(addsuffix *,$(1))),$(call rwildcard,$(d)/,$(2
 all: lint test build
 
 tidy:
-	go mod tidy -compat=1.20
+	go mod tidy -compat=1.22
 
 fmt:
 	go fmt ./...
