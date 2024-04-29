@@ -18,18 +18,11 @@ jobs:
       - name: Setup Go
         uses: actions/setup-go@93397bea11091df50f3d7e59dc26a7711a8bcfbe # v4.1.0
         with:
-          go-version: 1.20.x
+          go-version: 1.22.x
       - name: Setup yq
         uses: chrisdickinson/setup-yq@3d931309f27270ebbafd53f2daee773a82ea1822 #v1.0.1
         with:
           yq-version: v4.34.1
-      - name: Restore Go cache
-        uses: actions/cache@704facf57e6136b1bc63b828d79edcd491f0ee84 # v3.3.2
-        with:
-          path: ~/go/pkg/mod
-          key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
-          restore-keys: |
-            ${{ runner.os }}-go-
       - name: fmt
         run: make fmt
       - name: vet
