@@ -3,6 +3,7 @@ package build
 import (
 	"context"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"sync"
@@ -30,7 +31,28 @@ func Kustomize(ctx context.Context, path string) (resmap.ResMap, error) {
 			return nil, err
 		}
 
-		if !stat.IsDir() {
+		if path == "/dev/stdin" || path == "-" {
+			d, err := os.MkdirTemp(os.TempDir(), "")
+			if err != nil {
+				return nil, err
+			}
+
+			f, err := os.OpenFile(filepath.Join(d, "stdin.yaml"), os.O_CREATE|os.O_RDWR, 0644)
+			if err != nil {
+				return nil, err
+			}
+
+			_, err = io.Copy(f, os.Stdin)
+			if err != nil {
+				return nil, err
+			}
+
+			path = d
+
+			defer func() {
+				_ = os.RemoveAll(d)
+			}()
+		} else if !stat.IsDir() {
 			d, err := os.MkdirTemp(os.TempDir(), "")
 			if err != nil {
 				return nil, err
