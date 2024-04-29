@@ -171,11 +171,8 @@ func buildKustomization(fs filesys.FileSystem, dirPath string) (resmap.ResMap, e
 	defer kustomizeRenderMutex.Unlock()
 
 	buildOptions := &krusty.Options{
-		DoLegacyResourceSort: true,
-		LoadRestrictions:     kustypes.LoadRestrictionsNone,
-		AddManagedbyLabel:    false,
-		DoPrune:              false,
-		PluginConfig:         kustypes.DisabledPluginConfig(),
+		LoadRestrictions: kustypes.LoadRestrictionsNone,
+		PluginConfig:     kustypes.DisabledPluginConfig(),
 	}
 
 	k := krusty.MakeKustomizer(buildOptions)

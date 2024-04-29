@@ -2,13 +2,11 @@ package postrenderer
 
 import (
 	"bytes"
-
-	"sigs.k8s.io/kustomize/api/builtins"
-	"sigs.k8s.io/kustomize/api/provider"
-	"sigs.k8s.io/kustomize/api/resmap"
-	"sigs.k8s.io/kustomize/api/types"
+	"encoding/json"
 
 	v2 "github.com/fluxcd/helm-controller/api/v2beta1"
+	"sigs.k8s.io/kustomize/api/filesys"
+	kustypes "sigs.k8s.io/kustomize/api/types"
 )
 
 func NewPostRendererNamespace(release *v2.HelmRelease) *postRendererNamespace {
@@ -27,43 +25,35 @@ type postRendererNamespace struct {
 }
 
 func (k *postRendererNamespace) Run(renderedManifests *bytes.Buffer) (modifiedManifests *bytes.Buffer, err error) {
-	resFactory := provider.NewDefaultDepProvider().GetResourceFactory()
-	resMapFactory := resmap.NewFactory(resFactory)
+	fs := filesys.MakeFsInMemory()
+	cfg := kustypes.Kustomization{}
+	cfg.APIVersion = kustypes.KustomizationVersion
+	cfg.Kind = kustypes.KustomizationKind
+	cfg.Namespace = k.namespace
 
-	resMap, err := resMapFactory.NewResMapFromBytes(renderedManifests.Bytes())
+	// Add rendered Helm output as input resource to the Kustomization.
+	const input = "helm-output.yaml"
+	cfg.Resources = append(cfg.Resources, input)
+	if err := writeFile(fs, input, renderedManifests); err != nil {
+		return nil, err
+	}
+
+	// Write kustomization config to file.
+	kustomization, err := json.Marshal(cfg)
 	if err != nil {
 		return nil, err
 	}
-
-	resWithNamespace := resmap.New()
-	resWithoutNamespace := resmap.New()
-
-	for _, res := range resMap.Resources() {
-		if res.GetNamespace() == "" {
-			_ = resWithoutNamespace.Append(res)
-		} else {
-			_ = resWithNamespace.Append(res)
-		}
-	}
-
-	namespaceTransformer := builtins.NamespaceTransformerPlugin{
-		ObjectMeta: types.ObjectMeta{
-			Namespace: k.namespace,
-		},
-	}
-
-	if err := namespaceTransformer.Transform(resWithoutNamespace); err != nil {
+	if err := writeToFile(fs, "kustomization.yaml", kustomization); err != nil {
 		return nil, err
 	}
-
-	for _, res := range resWithoutNamespace.Resources() {
-		_ = resWithNamespace.Append(res)
-	}
-
-	yaml, err := resWithNamespace.AsYaml()
+	resMap, err := buildKustomization(fs, ".")
 	if err != nil {
 		return nil, err
 	}
-
+	yaml, err := resMap.AsYaml()
+	if err != nil {
+		return nil, err
+	}
 	return bytes.NewBuffer(yaml), nil
+
 }
