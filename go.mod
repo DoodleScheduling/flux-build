@@ -9,7 +9,7 @@ require (
 	github.com/drone/envsubst v1.0.3
 	github.com/fluxcd/helm-controller/api v0.37.4
 	github.com/fluxcd/pkg/apis/kustomize v1.5.0
-	github.com/fluxcd/pkg/oci v0.37.0
+	github.com/fluxcd/pkg/oci v0.37.1
 	github.com/fluxcd/pkg/runtime v0.47.0
 	github.com/fluxcd/pkg/version v0.4.0
 	github.com/fluxcd/source-controller/api v1.2.5
@@ -277,7 +277,7 @@ require (
 	k8s.io/kubectl v0.30.0 // indirect
 	k8s.io/utils v0.0.0-20240423183400-0849a56e8f22 // indirect
 	oras.land/oras-go v1.2.5 // indirect
-	sigs.k8s.io/controller-runtime v0.18.0 // indirect
+	sigs.k8s.io/controller-runtime v0.18.1 // indirect
 	sigs.k8s.io/json v0.0.0-20221116044647-bc3834ca7abd // indirect
 	sigs.k8s.io/release-utils v0.8.1 // indirect
 	sigs.k8s.io/structured-merge-diff/v4 v4.4.1 // indirect
