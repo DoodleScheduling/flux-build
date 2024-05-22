@@ -1014,8 +1014,8 @@ sigs.k8s.io/json v0.0.0-20221116044647-bc3834ca7abd h1:EDPBXCAspyGV4jQlpZSudPeMm
 sigs.k8s.io/json v0.0.0-20221116044647-bc3834ca7abd/go.mod h1:B8JuhiUyNFVKdsE8h686QcCxMaH6HrOAZj4vswFpcB0=
 sigs.k8s.io/kustomize/api v0.17.1 h1:MYJBOP/yQ3/5tp4/sf6HiiMfNNyO97LmtnirH9SLNr4=
 sigs.k8s.io/kustomize/api v0.17.1/go.mod h1:ffn5491s2EiNrJSmgqcWGzQUVhc/pB0OKNI0HsT/0tA=
-sigs.k8s.io/kustomize/kyaml v0.17.0 h1:G2bWs03V9Ur2PinHLzTUJ8Ded+30SzXZKiO92SRDs3c=
-sigs.k8s.io/kustomize/kyaml v0.17.0/go.mod h1:6lxkYF1Cv9Ic8g/N7I86cvxNc5iinUo/P2vKsHNmpyE=
+sigs.k8s.io/kustomize/kyaml v0.17.1 h1:TnxYQxFXzbmNG6gOINgGWQt09GghzgTP6mIurOgrLCQ=
+sigs.k8s.io/kustomize/kyaml v0.17.1/go.mod h1:9V0mCjIEYjlXuCdYsSXvyoy2BTsLESH7TlGV81S282U=
 sigs.k8s.io/release-utils v0.8.1 h1:qSA9p3vZzO6RAq7zvzupCZjR29+n3NK9DSJPe9bSf7w=
 sigs.k8s.io/release-utils v0.8.1/go.mod h1:vrQ3eR1VmudgX4OUwr4pUZEkYLRms9bdbv06mr3kchQ=
 sigs.k8s.io/structured-merge-diff/v4 v4.4.1 h1:150L+0vs/8DA78h1u02ooW1/fFq/Lwr+sGiqlzvrtq4=
