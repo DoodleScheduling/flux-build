@@ -26,8 +26,8 @@ require (
 	go.uber.org/zap v1.27.0
 	golang.org/x/sync v0.7.0
 	helm.sh/helm/v3 v3.15.1
-	k8s.io/api v0.30.1
-	k8s.io/apiextensions-apiserver v0.30.1
+	k8s.io/api v0.30.2
+	k8s.io/apiextensions-apiserver v0.30.2
 	k8s.io/apimachinery v0.30.2
 	k8s.io/helm v2.17.0+incompatible
 	sigs.k8s.io/kustomize/api v0.17.2
@@ -268,10 +268,10 @@ require (
 	gopkg.in/ini.v1 v1.67.0 // indirect
 	gopkg.in/yaml.v2 v2.4.0 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
-	k8s.io/apiserver v0.30.1 // indirect
+	k8s.io/apiserver v0.30.2 // indirect
 	k8s.io/cli-runtime v0.30.0 // indirect
-	k8s.io/client-go v0.30.1 // indirect
-	k8s.io/component-base v0.30.1 // indirect
+	k8s.io/client-go v0.30.2 // indirect
+	k8s.io/component-base v0.30.2 // indirect
 	k8s.io/klog/v2 v2.120.1 // indirect
 	k8s.io/kube-openapi v0.0.0-20240423202451-8948a665c108 // indirect
 	k8s.io/kubectl v0.30.0 // indirect
