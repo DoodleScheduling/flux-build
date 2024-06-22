@@ -9,7 +9,7 @@ require (
 	github.com/drone/envsubst v1.0.3
 	github.com/fluxcd/helm-controller/api v0.37.4
 	github.com/fluxcd/pkg/apis/kustomize v1.5.0
-	github.com/fluxcd/pkg/oci v0.37.1
+	github.com/fluxcd/pkg/oci v0.38.0
 	github.com/fluxcd/pkg/runtime v0.47.1
 	github.com/fluxcd/pkg/version v0.4.0
 	github.com/fluxcd/source-controller/api v1.3.0
@@ -120,8 +120,10 @@ require (
 	github.com/exponent-io/jsonpath v0.0.0-20210407135951-1de76d718b3f // indirect
 	github.com/fatih/color v1.16.0 // indirect
 	github.com/felixge/httpsnoop v1.0.4 // indirect
+	github.com/fluxcd/cli-utils v0.36.0-flux.7 // indirect
 	github.com/fluxcd/pkg/apis/acl v0.3.0 // indirect
 	github.com/fluxcd/pkg/apis/meta v1.5.0 // indirect
+	github.com/fluxcd/pkg/cache v0.0.1 // indirect
 	github.com/fsnotify/fsnotify v1.7.0 // indirect
 	github.com/ghodss/yaml v1.0.0 // indirect
 	github.com/go-chi/chi v4.1.2+incompatible // indirect
