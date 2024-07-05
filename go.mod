@@ -9,7 +9,7 @@ require (
 	github.com/drone/envsubst v1.0.3
 	github.com/fluxcd/helm-controller/api v0.37.4
 	github.com/fluxcd/pkg/apis/kustomize v1.5.0
-	github.com/fluxcd/pkg/oci v0.38.0
+	github.com/fluxcd/pkg/oci v0.38.1
 	github.com/fluxcd/pkg/runtime v0.47.1
 	github.com/fluxcd/pkg/version v0.4.0
 	github.com/fluxcd/source-controller/api v1.3.0
