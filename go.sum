@@ -264,8 +264,8 @@ github.com/fluxcd/pkg/apis/meta v1.5.0 h1:/G82d2Az5D9op3F+wJUpD8jw/eTV0suM6P7+cS
 github.com/fluxcd/pkg/apis/meta v1.5.0/go.mod h1:Y3u7JomuuKtr5fvP1Iji2/50FdRe5GcBug2jawNVkdM=
 github.com/fluxcd/pkg/cache v0.0.1 h1:aeDQm4D37btj6I01p6ZKW6JNOZm3CIYN5PaVzyhHr38=
 github.com/fluxcd/pkg/cache v0.0.1/go.mod h1:R3TJIK9XaohHNc3BeqfZX/UivMrx8Xz6ihGoVAjh75k=
-github.com/fluxcd/pkg/oci v0.38.0 h1:a9pCdqiUPZ7YOnYDXVXCxELBU0r6xbDnGv4C6YUz7vU=
-github.com/fluxcd/pkg/oci v0.38.0/go.mod h1:mYVSxnpVutRmWu6mpwxm7hXFn6qdhLEjspL04ej/WZU=
+github.com/fluxcd/pkg/oci v0.38.1 h1:JIiZvi8WS5eoLIieJqL2kI8R875pK1PiVVijYlMTpNg=
+github.com/fluxcd/pkg/oci v0.38.1/go.mod h1:mYVSxnpVutRmWu6mpwxm7hXFn6qdhLEjspL04ej/WZU=
 github.com/fluxcd/pkg/runtime v0.47.1 h1:Q1tAFsp92uurWyoEe52AmMC4k+6DYTPBrUQDs+nz/9c=
 github.com/fluxcd/pkg/runtime v0.47.1/go.mod h1:97a+PqpWMgQsoqh91uH3EQz+/DC7Uxc8xcu/rDHFC5c=
 github.com/fluxcd/pkg/version v0.4.0 h1:3F6oeIZ+ug/f7pALIBhcUhfURel37EPPOn7nsGfsnOg=
