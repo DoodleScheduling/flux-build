@@ -54,7 +54,7 @@ func must(err error) {
 }
 
 func main() {
-	ctx := context.TODO()
+	ctx := context.Background()
 	if err := envconfig.Process(ctx, config); err != nil {
 		log.Fatal(err)
 	}
@@ -107,7 +107,7 @@ func main() {
 		Logger:           logger,
 	}
 
-	must(a.Run(context.TODO()))
+	must(a.Run(ctx))
 }
 
 func buildLogger() (logr.Logger, error) {
