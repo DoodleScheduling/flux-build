@@ -654,7 +654,7 @@ func (h *Helm) buildFromHelmRepository(ctx context.Context, obj *sourcev1beta2.H
 	if err != nil {
 		return err
 	}
-	if h.Cache != nil {
+	if h.Cache != nil && obj.GetArtifact() != nil {
 		if err = h.Cache.Set(obj.GetArtifact().URL, path, time.Hour); err != nil {
 			h.Logger.V(1).Info("Cached %s artifact in path %s", repo.GetArtifact().Path, path)
 		}
