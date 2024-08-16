@@ -609,6 +609,7 @@ func (h *Helm) buildFromHelmRepository(ctx context.Context, obj *sourcev1beta2.H
 				httpChartRepo.Index = index.(*helmrepo.IndexFile)
 				h.Logger.V(1).Info("Got %s artifact from cache", repo.GetArtifact().Path)
 			} else {
+				h.Logger.V(1).Info("Missed cach for artifact %s", repo.GetArtifact().Path)
 				defer func() {
 					// If we succeed in loading the index, cache it.
 					if httpChartRepo.Index != nil {
