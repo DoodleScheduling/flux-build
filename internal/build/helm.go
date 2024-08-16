@@ -490,6 +490,7 @@ func (h *Helm) buildFromHelmRepository(ctx context.Context, obj *sourcev1beta2.H
 	if err != nil {
 		return fmt.Errorf("failed to normalize url: %w", err)
 	}
+	h.Logger.V(1).Info("Using chart repo", "chartrepo", normalizedURL)
 
 	// Construct the Getter options from the HelmRepository data
 	clientOpts := []helmgetter.Option{
@@ -607,14 +608,14 @@ func (h *Helm) buildFromHelmRepository(ctx context.Context, obj *sourcev1beta2.H
 		if h.Cache != nil {
 			if index, ok := h.Cache.Get(repo.GetArtifact().Path); ok {
 				httpChartRepo.Index = index.(*helmrepo.IndexFile)
-				h.Logger.V(1).Info("Got %s artifact from cache", repo.GetArtifact().Path)
+				h.Logger.V(1).Info("Got artifact from cache", "artifact", repo.GetArtifact().Path)
 			} else {
-				h.Logger.V(1).Info("Missed cach for artifact %s", repo.GetArtifact().Path)
+				h.Logger.V(1).Info("Missed cach for artifact", "artifact", repo.GetArtifact().Path)
 				defer func() {
 					// If we succeed in loading the index, cache it.
 					if httpChartRepo.Index != nil {
 						if err = h.Cache.Set(repo.GetArtifact().Path, httpChartRepo.Index, time.Hour); err != nil {
-							h.Logger.V(1).Info("Caching %s artifact", repo.GetArtifact().Path)
+							h.Logger.V(1).Info("Cached new artifact", "artifact", repo.GetArtifact().Path)
 						}
 					}
 				}()
@@ -638,7 +639,7 @@ func (h *Helm) buildFromHelmRepository(ctx context.Context, obj *sourcev1beta2.H
 	if h.Cache != nil {
 		if path, ok := h.Cache.Get(ref.Key()); ok {
 			opts.CachedChart = path.(string)
-			h.Logger.V(1).Info("Using cached artifact %s, with path %s", ref.Key(), path)
+			h.Logger.V(1).Info("Using cached chart artifact", "chart", ref.Key(), "path", path)
 		}
 	}
 
@@ -656,7 +657,7 @@ func (h *Helm) buildFromHelmRepository(ctx context.Context, obj *sourcev1beta2.H
 	}
 	if h.Cache != nil {
 		if err = h.Cache.Set(ref.Key(), path, time.Hour); err != nil {
-			h.Logger.V(1).Info("Cached %s artifact in path %s", ref.Key(), path)
+			h.Logger.V(1).Info("Cached new chart", "chart", ref.Key(), "path", path)
 		}
 	}
 
