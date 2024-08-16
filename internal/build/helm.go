@@ -634,8 +634,9 @@ func (h *Helm) buildFromHelmRepository(ctx context.Context, obj *sourcev1beta2.H
 		Verify: obj.Spec.Verify != nil && obj.Spec.Verify.Provider != "",
 	}
 
-	if artifact := obj.GetArtifact(); artifact != nil {
-		if path, ok := h.Cache.Get(obj.GetArtifact().URL); ok {
+	ref := chart.RemoteReference{Name: obj.Spec.Chart, Version: obj.Spec.Version}
+	if h.Cache != nil {
+		if path, ok := h.Cache.Get(ref.Key()); ok {
 			opts.CachedChart = path.(string)
 			h.Logger.V(1).Info("Using cached artifact %s, with path %s", obj.GetArtifact().URL, path)
 		}
@@ -648,14 +649,13 @@ func (h *Helm) buildFromHelmRepository(ctx context.Context, obj *sourcev1beta2.H
 	}
 
 	// Build the chart
-	ref := chart.RemoteReference{Name: obj.Spec.Chart, Version: obj.Spec.Version}
 	path := TempPathForObj(h.opts.CacheDir, ".tgz", obj)
 	build, err := cb.Build(ctx, ref, path, opts)
 	if err != nil {
 		return err
 	}
-	if h.Cache != nil && obj.GetArtifact() != nil {
-		if err = h.Cache.Set(obj.GetArtifact().URL, path, time.Hour); err != nil {
+	if h.Cache != nil {
+		if err = h.Cache.Set(ref.Key(), path, time.Hour); err != nil {
 			h.Logger.V(1).Info("Cached %s artifact in path %s", repo.GetArtifact().Path, path)
 		}
 	}

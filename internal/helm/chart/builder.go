@@ -88,6 +88,11 @@ func (r RemoteReference) Validate() error {
 	return nil
 }
 
+// Key converts RemoteReference to a string key for caching.
+func (r RemoteReference) Key() string {
+	return fmt.Sprintf("%s%%%s", r.Name, r.Version)
+}
+
 // Builder is capable of building a (specific) chart Reference.
 type Builder interface {
 	// Build pulls and (optionally) packages a Helm chart with the given
