@@ -13,6 +13,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/doodlescheduling/flux-build/internal/cache"
 	"github.com/doodlescheduling/flux-build/internal/helm/chart"
 	"github.com/doodlescheduling/flux-build/internal/helm/getter"
 	"github.com/doodlescheduling/flux-build/internal/helm/postrenderer"
@@ -27,6 +28,7 @@ import (
 	sourcev1beta1 "github.com/fluxcd/source-controller/api/v1beta1"
 	ociv1 "github.com/fluxcd/source-controller/api/v1beta2"
 	sourcev1beta2 "github.com/fluxcd/source-controller/api/v1beta2"
+	"github.com/go-logr/logr"
 	"github.com/google/go-containerregistry/pkg/authn"
 	"github.com/google/go-containerregistry/pkg/name"
 	helmaction "helm.sh/helm/v3/pkg/action"
@@ -36,6 +38,7 @@ import (
 	"helm.sh/helm/v3/pkg/postrender"
 	helmreg "helm.sh/helm/v3/pkg/registry"
 	"helm.sh/helm/v3/pkg/release"
+	helmrepo "helm.sh/helm/v3/pkg/repo"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
@@ -51,6 +54,7 @@ type HelmOpts struct {
 	APIVersions      []string
 	FailFast         bool
 	CacheDir         string
+	CacheSize        int
 	KubeVersion      *chartutil.KubeVersion
 	Getters          helmgetter.Providers
 	Decoder          runtime.Decoder
@@ -58,10 +62,12 @@ type HelmOpts struct {
 }
 
 type Helm struct {
-	opts HelmOpts
+	Cache  *cache.Cache
+	Logger logr.Logger
+	opts   HelmOpts
 }
 
-func NewHelmBuilder(opts HelmOpts) *Helm {
+func NewHelmBuilder(logger logr.Logger, opts HelmOpts) *Helm {
 	if opts.Getters == nil {
 		opts.Getters = helmgetter.Providers{
 			helmgetter.Provider{
@@ -87,8 +93,15 @@ func NewHelmBuilder(opts HelmOpts) *Helm {
 		opts.Decoder = deserializer
 	}
 
+	var c *cache.Cache
+	if opts.CacheSize > 0 {
+		c = cache.New(opts.CacheSize, time.Hour)
+	}
+
 	return &Helm{
-		opts: opts,
+		Logger: logger,
+		opts:   opts,
+		Cache:  c,
 	}
 }
 
@@ -591,23 +604,21 @@ func (h *Helm) buildFromHelmRepository(ctx context.Context, obj *sourcev1beta2.H
 		}()*/
 
 		// Attempt to load the index from the cache.
-		/*if r.Cache != nil {
-			if index, ok := r.Cache.Get(repo.GetArtifact().Path); ok {
-				r.IncCacheEvents(cache.CacheEventTypeHit, repo.Name, repo.Namespace)
-				r.Cache.SetExpiration(repo.GetArtifact().Path, r.TTL)
+		if h.Cache != nil {
+			if index, ok := h.Cache.Get(repo.GetArtifact().Path); ok {
 				httpChartRepo.Index = index.(*helmrepo.IndexFile)
+				h.Logger.V(1).Info("Got %s artifact from cache", repo.GetArtifact().Path)
 			} else {
-				r.IncCacheEvents(cache.CacheEventTypeMiss, repo.Name, repo.Namespace)
 				defer func() {
 					// If we succeed in loading the index, cache it.
 					if httpChartRepo.Index != nil {
-						if err = r.Cache.Set(repo.GetArtifact().Path, httpChartRepo.Index, r.TTL); err != nil {
-							r.eventLogf(ctx, obj, eventv1.EventTypeTrace, sourcev1.CacheOperationFailedReason, "failed to cache index: %s", err)
+						if err = h.Cache.Set(repo.GetArtifact().Path, httpChartRepo.Index, time.Hour); err != nil {
+							h.Logger.V(1).Info("Caching %s artifact", repo.GetArtifact().Path)
 						}
 					}
 				}()
 			}
-		}*/
+		}
 		chartRepo = httpChartRepo
 	}
 
