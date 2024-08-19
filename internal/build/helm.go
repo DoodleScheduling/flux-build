@@ -636,9 +636,11 @@ func (h *Helm) buildFromHelmRepository(ctx context.Context, obj *sourcev1beta2.H
 	}
 
 	ref := chart.RemoteReference{Name: obj.Spec.Chart, Version: obj.Spec.Version}
+	path := TempPathForObj(h.opts.CacheDir, ".tgz", obj)
 	if h.Cache != nil {
-		if path, ok := h.Cache.Get(ref); ok {
-			opts.CachedChart = path.(string)
+		if p, ok := h.Cache.GetOrLock(ref); ok {
+			path = p.(string)
+			opts.CachedChart = path
 			h.Logger.V(1).Info("Using cached chart artifact", "chart", ref.String(), "path", path)
 		}
 	}
@@ -650,13 +652,12 @@ func (h *Helm) buildFromHelmRepository(ctx context.Context, obj *sourcev1beta2.H
 	}
 
 	// Build the chart
-	path := TempPathForObj(h.opts.CacheDir, ".tgz", obj)
 	build, err := cb.Build(ctx, ref, path, opts)
 	if err != nil {
 		return err
 	}
 	if h.Cache != nil {
-		if err = h.Cache.Set(ref, path); err != nil {
+		if err = h.Cache.SetUnlock(ref, path); err != nil {
 			h.Logger.V(1).Info("Cached new chart", "chart", ref.String(), "path", path)
 		}
 	}
