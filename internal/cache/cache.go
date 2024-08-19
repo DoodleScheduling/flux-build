@@ -13,234 +13,151 @@
 package cache
 
 import (
+	"errors"
 	"fmt"
-	"runtime"
 	"sync"
-	"time"
 )
 
-// Cache is a thread-safe in-memory key/value store.
-type Cache struct {
-	*cache
-}
-
-// Item is an item stored in the cache.
-type Item struct {
-	// Object is the item's value.
-	Object interface{}
-	// Expiration is the item's expiration time.
-	Expiration int64
-}
-
-type cache struct {
+type Cache[K comparable] struct {
 	// Items holds the elements in the cache.
-	Items map[string]Item
+	items map[K]any
+	mu    sync.RWMutex
 	// MaxItems is the maximum number of items the cache can hold.
 	MaxItems int
-	mu       sync.RWMutex
-	janitor  *janitor
 }
+
+var ErrorCacheIsFull = errors.New("Cache is full")
 
 // ItemCount returns the number of items in the cache.
 // This may include items that have expired, but have not yet been cleaned up.
-func (c *cache) ItemCount() int {
+func (c *Cache[K]) ItemCount() int {
 	c.mu.RLock()
-	n := len(c.Items)
-	c.mu.RUnlock()
-	return n
-}
-
-func (c *cache) set(key string, value interface{}, expiration time.Duration) {
-	var e int64
-	if expiration > 0 {
-		e = time.Now().Add(expiration).UnixNano()
-	}
-
-	c.Items[key] = Item{
-		Object:     value,
-		Expiration: e,
-	}
+	defer c.mu.RUnlock()
+	return len(c.items)
 }
 
 // Set adds an item to the cache, replacing any existing item.
-// If expiration is zero, the item never expires.
 // If the cache is full, Set will return an error.
-func (c *cache) Set(key string, value interface{}, expiration time.Duration) error {
+func (c *Cache[K]) Set(key K, value any) error {
 	c.mu.Lock()
-	_, found := c.Items[key]
+	defer c.mu.Unlock()
+	_, found := c.items[key]
 	if found {
-		c.set(key, value, expiration)
-		c.mu.Unlock()
+		c.items[key] = value
 		return nil
 	}
 
-	if c.MaxItems > 0 && len(c.Items) < c.MaxItems {
-		c.set(key, value, expiration)
-		c.mu.Unlock()
+	if c.MaxItems > 0 && len(c.items) < c.MaxItems {
+		c.items[key] = value
 		return nil
 	}
 
-	c.mu.Unlock()
-	return fmt.Errorf("Cache is full")
+	return ErrorCacheIsFull
 }
 
 // Add an item to the cache, existing items will not be overwritten.
 // To overwrite existing items, use Set.
 // If the cache is full, Add will return an error.
-func (c *cache) Add(key string, value interface{}, expiration time.Duration) error {
+func (c *Cache[K]) Add(key K, value any) error {
 	c.mu.Lock()
-	_, found := c.Items[key]
+	defer c.mu.Unlock()
+	_, found := c.items[key]
 	if found {
-		c.mu.Unlock()
-		return fmt.Errorf("Item %s already exists", key)
+		return fmt.Errorf("Item %v already exists", key)
 	}
 
-	if c.MaxItems > 0 && len(c.Items) < c.MaxItems {
-		c.set(key, value, expiration)
-		c.mu.Unlock()
+	if c.MaxItems > 0 && len(c.items) < c.MaxItems {
+		c.items[key] = value
 		return nil
 	}
 
-	c.mu.Unlock()
-	return fmt.Errorf("Cache is full")
+	return ErrorCacheIsFull
 }
 
 // Get an item from the cache. Returns the item or nil, and a bool indicating
 // whether the key was found.
-func (c *cache) Get(key string) (interface{}, bool) {
+func (c *Cache[K]) Get(key K) (any, bool) {
 	c.mu.RLock()
-	item, found := c.Items[key]
+	defer c.mu.RUnlock()
+	item, found := c.items[key]
 	if !found {
-		c.mu.RUnlock()
 		return nil, false
 	}
-	if item.Expiration > 0 {
-		if item.Expiration < time.Now().UnixNano() {
-			c.mu.RUnlock()
+	return item, true
+}
+
+type valueLock chan struct{}
+
+// GetOrLock returns an item from the cache or creats lock for the first requestor of specific key
+// and locks others until the item will be set.
+func (c *Cache[K]) GetOrLock(key K) (any, bool) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	item, found := c.items[key]
+	if !found {
+		// Create lock, return to the first caller.
+		vl := make(valueLock)
+		c.items[key] = vl
+		return nil, false
+	}
+	if vl, ok := item.(valueLock); ok {
+		// No value yet, unlock and block until ready.
+		c.mu.Unlock()
+		<-vl
+		// Done waiting, re-locking.
+		c.mu.Lock()
+		item, found = c.items[key]
+		if _, ok := item.(valueLock); !found || ok {
+			// Can happen only if the cache was cleared while waiting or the cache is over capacity.
 			return nil, false
 		}
 	}
-	c.mu.RUnlock()
-	return item.Object, true
+
+	return item, true
+}
+
+// SetUnlock sets value for the key, if there was a lock for the key, unlocks it.
+func (c *Cache[K]) SetUnlock(key K, value any) error {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	if v, found := c.items[key]; found {
+		if vl, ok := v.(valueLock); ok {
+			close(vl)
+		}
+	}
+	if c.MaxItems > 0 && len(c.items) > c.MaxItems {
+		// Over capacity. Deleting item if exits.
+		delete(c.items, key)
+		return ErrorCacheIsFull
+	}
+
+	c.items[key] = value
+	return nil
 }
 
 // Delete an item from the cache. Does nothing if the key is not in the cache.
-func (c *cache) Delete(key string) {
+func (c *Cache[K]) Delete(key K) {
 	c.mu.Lock()
-	delete(c.Items, key)
-	c.mu.Unlock()
+	defer c.mu.Unlock()
+	delete(c.items, key)
 }
 
 // Clear all items from the cache.
 // This reallocate the inderlying array holding the items,
 // so that the memory used by the items is reclaimed.
-func (c *cache) Clear() {
+func (c *Cache[K]) Clear() {
 	c.mu.Lock()
-	c.Items = make(map[string]Item)
-	c.mu.Unlock()
-}
-
-// HasExpired returns true if the item has expired.
-func (c *cache) HasExpired(key string) bool {
-	c.mu.RLock()
-	item, ok := c.Items[key]
-	if !ok {
-		c.mu.RUnlock()
-		return true
-	}
-	if item.Expiration > 0 {
-		if item.Expiration < time.Now().UnixNano() {
-			c.mu.RUnlock()
-			return true
-		}
-	}
-	c.mu.RUnlock()
-	return false
-}
-
-// SetExpiration sets the expiration for the given key.
-// Does nothing if the key is not in the cache.
-func (c *cache) SetExpiration(key string, expiration time.Duration) {
-	c.mu.Lock()
-	item, ok := c.Items[key]
-	if !ok {
-		c.mu.Unlock()
-		return
-	}
-	item.Expiration = time.Now().Add(expiration).UnixNano()
-	c.mu.Unlock()
-}
-
-// GetExpiration returns the expiration for the given key.
-// Returns zero if the key is not in the cache or the item
-// has already expired.
-func (c *cache) GetExpiration(key string) time.Duration {
-	c.mu.RLock()
-	item, ok := c.Items[key]
-	if !ok {
-		c.mu.RUnlock()
-		return 0
-	}
-	if item.Expiration > 0 {
-		if item.Expiration < time.Now().UnixNano() {
-			c.mu.RUnlock()
-			return 0
-		}
-	}
-	c.mu.RUnlock()
-	return time.Duration(item.Expiration - time.Now().UnixNano())
-}
-
-// DeleteExpired deletes all expired items from the cache.
-func (c *cache) DeleteExpired() {
-	c.mu.Lock()
-	for k, v := range c.Items {
-		if v.Expiration > 0 && v.Expiration < time.Now().UnixNano() {
-			delete(c.Items, k)
-		}
-	}
-	c.mu.Unlock()
-}
-
-type janitor struct {
-	interval time.Duration
-	stop     chan bool
-}
-
-func (j *janitor) run(c *cache) {
-	ticker := time.NewTicker(j.interval)
-	for {
-		select {
-		case <-ticker.C:
-			c.DeleteExpired()
-		case <-j.stop:
-			ticker.Stop()
-			return
-		}
-	}
-}
-
-func stopJanitor(c *Cache) {
-	c.janitor.stop <- true
+	defer c.mu.Unlock()
+	c.items = make(map[K]any)
 }
 
 // New creates a new cache with the given configuration.
-func New(maxItems int, interval time.Duration) *Cache {
-	c := &cache{
-		Items:    make(map[string]Item),
+func New[K comparable](maxItems int) *Cache[K] {
+	c := &Cache[K]{
+		items:    make(map[K]any),
 		MaxItems: maxItems,
-		janitor: &janitor{
-			interval: interval,
-			stop:     make(chan bool),
-		},
 	}
 
-	C := &Cache{c}
-
-	if interval > 0 {
-		go c.janitor.run(c)
-		runtime.SetFinalizer(C, stopJanitor)
-	}
-
-	return C
+	return c
 }

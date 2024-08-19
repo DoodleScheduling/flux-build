@@ -38,7 +38,6 @@ import (
 	"helm.sh/helm/v3/pkg/postrender"
 	helmreg "helm.sh/helm/v3/pkg/registry"
 	"helm.sh/helm/v3/pkg/release"
-	helmrepo "helm.sh/helm/v3/pkg/repo"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
@@ -62,7 +61,7 @@ type HelmOpts struct {
 }
 
 type Helm struct {
-	Cache  *cache.Cache
+	Cache  *cache.Cache[chart.RemoteReference]
 	Logger logr.Logger
 	opts   HelmOpts
 }
@@ -93,9 +92,9 @@ func NewHelmBuilder(logger logr.Logger, opts HelmOpts) *Helm {
 		opts.Decoder = deserializer
 	}
 
-	var c *cache.Cache
+	var c *cache.Cache[chart.RemoteReference]
 	if opts.CacheSize > 0 {
-		c = cache.New(opts.CacheSize, time.Hour)
+		c = cache.New[chart.RemoteReference](opts.CacheSize)
 	}
 
 	return &Helm{
@@ -605,22 +604,23 @@ func (h *Helm) buildFromHelmRepository(ctx context.Context, obj *sourcev1beta2.H
 		}()*/
 
 		// Attempt to load the index from the cache.
-		if h.Cache != nil {
-			if index, ok := h.Cache.Get(repo.GetArtifact().Path); ok {
+		/*if r.Cache != nil {
+			if index, ok := r.Cache.Get(repo.GetArtifact().Path); ok {
+				r.IncCacheEvents(cache.CacheEventTypeHit, repo.Name, repo.Namespace)
+				r.Cache.SetExpiration(repo.GetArtifact().Path, r.TTL)
 				httpChartRepo.Index = index.(*helmrepo.IndexFile)
-				h.Logger.V(1).Info("Got artifact from cache", "artifact", repo.GetArtifact().Path)
 			} else {
-				h.Logger.V(1).Info("Missed cach for artifact", "artifact", repo.GetArtifact().Path)
+				r.IncCacheEvents(cache.CacheEventTypeMiss, repo.Name, repo.Namespace)
 				defer func() {
 					// If we succeed in loading the index, cache it.
 					if httpChartRepo.Index != nil {
-						if err = h.Cache.Set(repo.GetArtifact().Path, httpChartRepo.Index, time.Hour); err != nil {
-							h.Logger.V(1).Info("Cached new artifact", "artifact", repo.GetArtifact().Path)
+						if err = r.Cache.Set(repo.GetArtifact().Path, httpChartRepo.Index, r.TTL); err != nil {
+							r.eventLogf(ctx, obj, eventv1.EventTypeTrace, sourcev1.CacheOperationFailedReason, "failed to cache index: %s", err)
 						}
 					}
 				}()
 			}
-		}
+		}*/
 		chartRepo = httpChartRepo
 	}
 
@@ -637,9 +637,9 @@ func (h *Helm) buildFromHelmRepository(ctx context.Context, obj *sourcev1beta2.H
 
 	ref := chart.RemoteReference{Name: obj.Spec.Chart, Version: obj.Spec.Version}
 	if h.Cache != nil {
-		if path, ok := h.Cache.Get(ref.Key()); ok {
+		if path, ok := h.Cache.Get(ref); ok {
 			opts.CachedChart = path.(string)
-			h.Logger.V(1).Info("Using cached chart artifact", "chart", ref.Key(), "path", path)
+			h.Logger.V(1).Info("Using cached chart artifact", "chart", ref.String(), "path", path)
 		}
 	}
 
@@ -656,8 +656,8 @@ func (h *Helm) buildFromHelmRepository(ctx context.Context, obj *sourcev1beta2.H
 		return err
 	}
 	if h.Cache != nil {
-		if err = h.Cache.Set(ref.Key(), path, time.Hour); err != nil {
-			h.Logger.V(1).Info("Cached new chart", "chart", ref.Key(), "path", path)
+		if err = h.Cache.Set(ref, path); err != nil {
+			h.Logger.V(1).Info("Cached new chart", "chart", ref.String(), "path", path)
 		}
 	}
 

@@ -89,7 +89,7 @@ func (r RemoteReference) Validate() error {
 }
 
 // Key converts RemoteReference to a string key for caching.
-func (r RemoteReference) Key() string {
+func (r RemoteReference) String() string {
 	return fmt.Sprintf("%s%%%s", r.Name, r.Version)
 }
 
