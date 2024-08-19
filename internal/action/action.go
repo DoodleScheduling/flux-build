@@ -19,7 +19,7 @@ type Action struct {
 	FailFast         bool
 	Workers          int
 	CacheDir         string
-	CacheSize        int
+	CacheEnabled     bool
 	Paths            []string
 	APIVersions      []string
 	IncludeHelmHooks bool
@@ -65,7 +65,7 @@ func (a *Action) Run(ctx context.Context) error {
 		APIVersions:      a.APIVersions,
 		KubeVersion:      a.KubeVersion,
 		IncludeHelmHooks: a.IncludeHelmHooks,
-		CacheSize:        a.CacheSize,
+		CacheEnabled:     a.CacheEnabled,
 	})
 
 	helmResultPool.Push(worker.Task(func(ctx context.Context) error {

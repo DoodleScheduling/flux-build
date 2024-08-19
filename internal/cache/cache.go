@@ -13,7 +13,6 @@
 package cache
 
 import (
-	"errors"
 	"fmt"
 	"sync"
 )
@@ -22,11 +21,7 @@ type Cache[K comparable] struct {
 	// Items holds the elements in the cache.
 	items map[K]any
 	mu    sync.RWMutex
-	// MaxItems is the maximum number of items the cache can hold.
-	MaxItems int
 }
-
-var ErrorCacheIsFull = errors.New("Cache is full")
 
 // ItemCount returns the number of items in the cache.
 // This may include items that have expired, but have not yet been cleaned up.
@@ -37,27 +32,14 @@ func (c *Cache[K]) ItemCount() int {
 }
 
 // Set adds an item to the cache, replacing any existing item.
-// If the cache is full, Set will return an error.
-func (c *Cache[K]) Set(key K, value any) error {
+func (c *Cache[K]) Set(key K, value any) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	_, found := c.items[key]
-	if found {
-		c.items[key] = value
-		return nil
-	}
-
-	if c.MaxItems > 0 && len(c.items) < c.MaxItems {
-		c.items[key] = value
-		return nil
-	}
-
-	return ErrorCacheIsFull
+	c.items[key] = value
 }
 
 // Add an item to the cache, existing items will not be overwritten.
 // To overwrite existing items, use Set.
-// If the cache is full, Add will return an error.
 func (c *Cache[K]) Add(key K, value any) error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
@@ -65,13 +47,8 @@ func (c *Cache[K]) Add(key K, value any) error {
 	if found {
 		return fmt.Errorf("Item %v already exists", key)
 	}
-
-	if c.MaxItems > 0 && len(c.items) < c.MaxItems {
-		c.items[key] = value
-		return nil
-	}
-
-	return ErrorCacheIsFull
+	c.items[key] = value
+	return nil
 }
 
 // Get an item from the cache. Returns the item or nil, and a bool indicating
@@ -117,7 +94,7 @@ func (c *Cache[K]) GetOrLock(key K) (any, bool) {
 }
 
 // SetUnlock sets value for the key, if there was a lock for the key, unlocks it.
-func (c *Cache[K]) SetUnlock(key K, value any) error {
+func (c *Cache[K]) SetUnlock(key K, value any) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
@@ -126,14 +103,8 @@ func (c *Cache[K]) SetUnlock(key K, value any) error {
 			close(vl)
 		}
 	}
-	if c.MaxItems > 0 && len(c.items) > c.MaxItems {
-		// Over capacity. Deleting item if exits.
-		delete(c.items, key)
-		return ErrorCacheIsFull
-	}
 
 	c.items[key] = value
-	return nil
 }
 
 // Delete an item from the cache. Does nothing if the key is not in the cache.
@@ -153,10 +124,9 @@ func (c *Cache[K]) Clear() {
 }
 
 // New creates a new cache with the given configuration.
-func New[K comparable](maxItems int) *Cache[K] {
+func New[K comparable]() *Cache[K] {
 	c := &Cache[K]{
-		items:    make(map[K]any),
-		MaxItems: maxItems,
+		items: make(map[K]any),
 	}
 
 	return c

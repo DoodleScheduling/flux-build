@@ -53,7 +53,7 @@ type HelmOpts struct {
 	APIVersions      []string
 	FailFast         bool
 	CacheDir         string
-	CacheSize        int
+	CacheEnabled     bool
 	KubeVersion      *chartutil.KubeVersion
 	Getters          helmgetter.Providers
 	Decoder          runtime.Decoder
@@ -93,8 +93,8 @@ func NewHelmBuilder(logger logr.Logger, opts HelmOpts) *Helm {
 	}
 
 	var c *cache.Cache[chart.RemoteReference]
-	if opts.CacheSize > 0 {
-		c = cache.New[chart.RemoteReference](opts.CacheSize)
+	if opts.CacheEnabled {
+		c = cache.New[chart.RemoteReference]()
 	}
 
 	return &Helm{
@@ -636,7 +636,7 @@ func (h *Helm) buildFromHelmRepository(ctx context.Context, obj *sourcev1beta2.H
 	}
 
 	ref := chart.RemoteReference{Name: obj.Spec.Chart, Version: obj.Spec.Version}
-	path := TempPathForObj(h.opts.CacheDir, ".tgz", obj)
+	path := TempPathForObj(h.opts.CacheDir, ref.String(), ".tgz")
 	if h.Cache != nil {
 		if p, ok := h.Cache.GetOrLock(ref); ok {
 			path = p.(string)
@@ -657,9 +657,8 @@ func (h *Helm) buildFromHelmRepository(ctx context.Context, obj *sourcev1beta2.H
 		return err
 	}
 	if h.Cache != nil {
-		if err = h.Cache.SetUnlock(ref, path); err != nil {
-			h.Logger.V(1).Info("Cached new chart", "chart", ref.String(), "path", path)
-		}
+		h.Cache.SetUnlock(ref, path)
+		h.Logger.V(1).Info("Cached new chart", "chart", ref.String(), "path", path)
 	}
 
 	*b = *build
@@ -667,20 +666,15 @@ func (h *Helm) buildFromHelmRepository(ctx context.Context, obj *sourcev1beta2.H
 }
 
 // TempPathForObj creates a temporary file path in the format of
-// '<dir>/Kind-Namespace-Name-<random bytes><suffix>'.
+// '<dir>/<obj>-<random bytes><suffix>'.
 // If the given dir is empty, os.TempDir is used as a default.
-func TempPathForObj(dir, suffix string, obj *sourcev1beta2.HelmChart) string {
+func TempPathForObj(dir, obj string, suffix string) string {
 	if dir == "" {
 		dir = os.TempDir()
 	}
 	randBytes := make([]byte, 16)
 	_, _ = rand.Read(randBytes)
-	return filepath.Join(dir, pattern(obj)+hex.EncodeToString(randBytes)+suffix)
-}
-
-func pattern(obj *sourcev1beta2.HelmChart) (p string) {
-	kind := strings.ToLower(obj.GetObjectKind().GroupVersionKind().Kind)
-	return fmt.Sprintf("%s-%s-%s-", kind, obj.GetNamespace(), obj.GetName())
+	return filepath.Join(dir, obj+"-"+hex.EncodeToString(randBytes)+suffix)
 }
 
 // oidcAuth generates the OIDC credential authenticator based on the specified cloud provider.

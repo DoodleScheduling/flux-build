@@ -25,7 +25,7 @@ import (
 func TestCache(t *testing.T) {
 	g := NewWithT(t)
 	// create a cache that can hold 2 items
-	cache := New[string](2)
+	cache := New[string]()
 
 	// Get an Item from the cache
 	if _, found := cache.Get("key1"); found {
@@ -53,12 +53,11 @@ func TestCache(t *testing.T) {
 
 	//Add an item to the cache
 	err = cache.Add("key3", "value3")
-	g.Expect(err).To(HaveOccurred())
-	g.Expect(cache.ItemCount()).To(Equal(2))
+	g.Expect(err).ToNot(HaveOccurred())
+	g.Expect(cache.ItemCount()).To(Equal(3))
 
 	// Replace an item in the cache
-	err = cache.Set("key2", "value3")
-	g.Expect(err).ToNot(HaveOccurred())
+	cache.Set("key2", "value3")
 
 	// Get the item from the cache
 	item, found = cache.Get("key2")
@@ -66,7 +65,7 @@ func TestCache(t *testing.T) {
 	g.Expect(item).To(Equal("value3"))
 
 	// new int cache
-	cache2 := New[int](2)
+	cache2 := New[int]()
 
 	// Add an item to the cache
 	err = cache2.Add(1, "value1")
@@ -87,6 +86,5 @@ func TestCache(t *testing.T) {
 		g.Expect(item).To(Equal("value3"))
 	}()
 
-	err = cache2.SetUnlock(3, "value3")
-	g.Expect(err).ToNot(HaveOccurred())
+	cache2.SetUnlock(3, "value3")
 }

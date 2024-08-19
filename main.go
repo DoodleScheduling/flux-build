@@ -29,7 +29,7 @@ type Config struct {
 	Workers          int      `env:"WORKERS"`
 	APIVersions      []string `env:"API_VERSIONS"`
 	KubeVersion      string   `env:"KUBE_VERSION"`
-	CacheSize        int      `env:"CACHE_SIZE"`
+	CacheEnabled     bool     `env:"CACHE_ENABLED"`
 }
 
 var (
@@ -46,7 +46,7 @@ func init() {
 	flag.IntVar(&config.Workers, "workers", 0, "Workers used to parse manifests")
 	flag.StringVarP(&config.KubeVersion, "kube-version", "", "", "Kubernetes version (Some helm charts validate manifests against a specific kubernetes version)")
 	flag.StringSliceVarP(&config.APIVersions, "api-versions", "", nil, "Kubernetes api versions used for Capabilities.APIVersions (Comma separated)")
-	flag.IntVar(&config.CacheSize, "cache-size", 0, "Size of Helm cache")
+	flag.BoolVar(&config.CacheEnabled, "cache-enabled", true, "Is Helm charts cache enabled")
 }
 
 func must(err error) {
@@ -107,7 +107,7 @@ func main() {
 		Output:           out,
 		IncludeHelmHooks: config.IncludeHelmHooks,
 		Logger:           logger,
-		CacheSize:        config.CacheSize,
+		CacheEnabled:     config.CacheEnabled,
 	}
 
 	must(a.Run(ctx))
