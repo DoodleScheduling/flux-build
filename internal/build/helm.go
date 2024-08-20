@@ -489,7 +489,7 @@ func (h *Helm) buildFromHelmRepository(ctx context.Context, obj *sourcev1beta2.H
 	if err != nil {
 		return fmt.Errorf("failed to normalize url: %w", err)
 	}
-	h.Logger.V(1).Info("Using chart repo", "chartrepo", normalizedURL)
+	h.Logger.V(1).Info("using chart repo", "chartrepo", normalizedURL)
 
 	// Construct the Getter options from the HelmRepository data
 	clientOpts := []helmgetter.Option{
@@ -641,7 +641,7 @@ func (h *Helm) buildFromHelmRepository(ctx context.Context, obj *sourcev1beta2.H
 		if p, ok := h.Cache.GetOrLock(ref); ok {
 			path = p.(string)
 			opts.CachedChart = path
-			h.Logger.V(1).Info("Using cached chart artifact", "chart", ref.String(), "path", path)
+			h.Logger.V(1).Info("using cached chart artifact", "chart", ref.String(), "path", path)
 		}
 	}
 
@@ -658,7 +658,7 @@ func (h *Helm) buildFromHelmRepository(ctx context.Context, obj *sourcev1beta2.H
 	}
 	if h.Cache != nil {
 		h.Cache.SetUnlock(ref, path)
-		h.Logger.V(1).Info("Cached new chart", "chart", ref.String(), "path", path)
+		h.Logger.V(1).Info("cached new chart", "chart", ref.String(), "path", path)
 	}
 
 	*b = *build
