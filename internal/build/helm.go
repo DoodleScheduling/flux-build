@@ -13,6 +13,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/doodlescheduling/flux-build/internal/cache"
 	"github.com/doodlescheduling/flux-build/internal/helm/chart"
 	"github.com/doodlescheduling/flux-build/internal/helm/getter"
 	"github.com/doodlescheduling/flux-build/internal/helm/postrenderer"
@@ -27,6 +28,7 @@ import (
 	sourcev1beta1 "github.com/fluxcd/source-controller/api/v1beta1"
 	ociv1 "github.com/fluxcd/source-controller/api/v1beta2"
 	sourcev1beta2 "github.com/fluxcd/source-controller/api/v1beta2"
+	"github.com/go-logr/logr"
 	"github.com/google/go-containerregistry/pkg/authn"
 	"github.com/google/go-containerregistry/pkg/name"
 	helmaction "helm.sh/helm/v3/pkg/action"
@@ -51,6 +53,7 @@ type HelmOpts struct {
 	APIVersions      []string
 	FailFast         bool
 	CacheDir         string
+	CacheEnabled     bool
 	KubeVersion      *chartutil.KubeVersion
 	Getters          helmgetter.Providers
 	Decoder          runtime.Decoder
@@ -58,10 +61,12 @@ type HelmOpts struct {
 }
 
 type Helm struct {
-	opts HelmOpts
+	Cache  *cache.Cache[chart.RemoteReference]
+	Logger logr.Logger
+	opts   HelmOpts
 }
 
-func NewHelmBuilder(opts HelmOpts) *Helm {
+func NewHelmBuilder(logger logr.Logger, opts HelmOpts) *Helm {
 	if opts.Getters == nil {
 		opts.Getters = helmgetter.Providers{
 			helmgetter.Provider{
@@ -87,8 +92,15 @@ func NewHelmBuilder(opts HelmOpts) *Helm {
 		opts.Decoder = deserializer
 	}
 
+	var c *cache.Cache[chart.RemoteReference]
+	if opts.CacheEnabled {
+		c = cache.New[chart.RemoteReference]()
+	}
+
 	return &Helm{
-		opts: opts,
+		Logger: logger,
+		opts:   opts,
+		Cache:  c,
 	}
 }
 
@@ -477,6 +489,7 @@ func (h *Helm) buildFromHelmRepository(ctx context.Context, obj *sourcev1beta2.H
 	if err != nil {
 		return fmt.Errorf("failed to normalize url: %w", err)
 	}
+	h.Logger.V(1).Info("using chart repo", "chartrepo", normalizedURL)
 
 	// Construct the Getter options from the HelmRepository data
 	clientOpts := []helmgetter.Option{
@@ -622,9 +635,15 @@ func (h *Helm) buildFromHelmRepository(ctx context.Context, obj *sourcev1beta2.H
 		Verify: obj.Spec.Verify != nil && obj.Spec.Verify.Provider != "",
 	}
 
-	/*if artifact := obj.GetArtifact(); artifact != nil {
-		opts.CachedChart = r.Storage.LocalPath(*artifact)
-	}*/
+	ref := chart.RemoteReference{Name: obj.Spec.Chart, Version: obj.Spec.Version}
+	path := TempPathForObj(h.opts.CacheDir, ref.String(), ".tgz")
+	if h.Cache != nil {
+		if p, ok := h.Cache.GetOrLock(ref); ok {
+			path = p.(string)
+			opts.CachedChart = path
+			h.Logger.V(1).Info("using cached chart artifact", "chart", ref.String(), "path", path)
+		}
+	}
 
 	// Set the VersionMetadata to the object's Generation if ValuesFiles is defined
 	// This ensures changes can be noticed by the Artifact consumer
@@ -633,10 +652,13 @@ func (h *Helm) buildFromHelmRepository(ctx context.Context, obj *sourcev1beta2.H
 	}
 
 	// Build the chart
-	ref := chart.RemoteReference{Name: obj.Spec.Chart, Version: obj.Spec.Version}
-	build, err := cb.Build(ctx, ref, TempPathForObj(h.opts.CacheDir, ".tgz", obj), opts)
+	build, err := cb.Build(ctx, ref, path, opts)
 	if err != nil {
 		return err
+	}
+	if h.Cache != nil {
+		h.Cache.SetUnlock(ref, path)
+		h.Logger.V(1).Info("cached new chart", "chart", ref.String(), "path", path)
 	}
 
 	*b = *build
@@ -644,20 +666,15 @@ func (h *Helm) buildFromHelmRepository(ctx context.Context, obj *sourcev1beta2.H
 }
 
 // TempPathForObj creates a temporary file path in the format of
-// '<dir>/Kind-Namespace-Name-<random bytes><suffix>'.
+// '<dir>/<obj>-<random bytes><suffix>'.
 // If the given dir is empty, os.TempDir is used as a default.
-func TempPathForObj(dir, suffix string, obj *sourcev1beta2.HelmChart) string {
+func TempPathForObj(dir, obj string, suffix string) string {
 	if dir == "" {
 		dir = os.TempDir()
 	}
 	randBytes := make([]byte, 16)
 	_, _ = rand.Read(randBytes)
-	return filepath.Join(dir, pattern(obj)+hex.EncodeToString(randBytes)+suffix)
-}
-
-func pattern(obj *sourcev1beta2.HelmChart) (p string) {
-	kind := strings.ToLower(obj.GetObjectKind().GroupVersionKind().Kind)
-	return fmt.Sprintf("%s-%s-%s-", kind, obj.GetNamespace(), obj.GetName())
+	return filepath.Join(dir, obj+"-"+hex.EncodeToString(randBytes)+suffix)
 }
 
 // oidcAuth generates the OIDC credential authenticator based on the specified cloud provider.

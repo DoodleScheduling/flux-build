@@ -19,6 +19,7 @@ type Action struct {
 	FailFast         bool
 	Workers          int
 	CacheDir         string
+	CacheEnabled     bool
 	Paths            []string
 	APIVersions      []string
 	IncludeHelmHooks bool
@@ -60,10 +61,11 @@ func (a *Action) Run(ctx context.Context) error {
 
 	resources := make(chan resmap.ResMap, len(a.Paths))
 	manifests := make(chan resmap.ResMap, a.Workers)
-	helmBuilder := build.NewHelmBuilder(build.HelmOpts{
+	helmBuilder := build.NewHelmBuilder(a.Logger, build.HelmOpts{
 		APIVersions:      a.APIVersions,
 		KubeVersion:      a.KubeVersion,
 		IncludeHelmHooks: a.IncludeHelmHooks,
+		CacheEnabled:     a.CacheEnabled,
 	})
 
 	helmResultPool.Push(worker.Task(func(ctx context.Context) error {

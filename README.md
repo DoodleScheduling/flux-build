@@ -65,7 +65,7 @@ docker pull ghcr.io/doodlescheduling/flux-build:v0
 | `--workers`  | `WORKERS`  | `Number of CPU cores` | Workers used to template the HelmReleases. Greatly improves speed if there are many HelmReleases |
 | `--fail-fast`  | `FAIL_FAST` | `false` | Exit early if an error occured |
 | `--allow-failure`  | `ALLOW_FAILURE` | `false` | Do not exit > 0 if an error occured |
-| `--cache-dir`  | `CACHE_DIR`  | `` | Cache directory (for repositorieries, charts) |
+| `--cache-enabled`  | `CACHE_ENABLED`  | `true` | Enable Helm charts cache |
 | `--api-versions` | `API_VERSIONS` | `` | Kubernetes api versions used for Capabilities.APIVersions (See helm help) |
 | `--kube-version`  | `KUBE_VERSION` | `1.27.0` | Kubernetes version (Some helm charts validate manifests against a specific kubernetes version) |
 | `--output`  | `OUTPUT` | `/dev/stdout` | Path to output file |
@@ -148,7 +148,7 @@ jobs:
         openapi2jsonschema schemas/*.yaml
     - name: Run conform
       shell: bash
-      env: 
+      env:
         KUBERNETES_VERSION: "${{ inputs.kubernetes-version }}"
       run: |
         echo "kubeconform $m"
@@ -172,13 +172,13 @@ This means flux-build has not directly access to these secrets but some resource
 
 It depends whether the secrets value is actually a hard dependency or a soft one. Example for hard dependencies are if the secret is used in HelmRepository
 as repository credentials.
-If flux-build is used on a ci build, a way to achieve this is to store the plain v1.Secret as a ci secret and inject it into the folder which gets 
+If flux-build is used on a ci build, a way to achieve this is to store the plain v1.Secret as a ci secret and inject it into the folder which gets
 built by flux-build. Locally one might first need to pull the decrypted secret from the cluster.
 
 For soft dependencies meaning the actual secrets value is only required at runtime on the cluster but flux-build can use any value.
 To achieve this a good practice is to add a dummy secret which is available to flux-build but not synced to the cluster (Either by placing the dummies in a folder which is not targeted by a flux kustomization or by annotating
 the dummy secrets with `kustomize.toolkit.fluxcd.io/reconcile: disabled`).
-Examples for this case are usually if a HelmRelease refers to v1.Secrets as values. 
+Examples for this case are usually if a HelmRelease refers to v1.Secrets as values.
 
 
 ## License notice
