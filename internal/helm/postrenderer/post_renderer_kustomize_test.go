@@ -25,7 +25,7 @@ import (
 
 	"github.com/fluxcd/pkg/apis/kustomize"
 
-	v2 "github.com/fluxcd/helm-controller/api/v2"
+	helmv1 "github.com/fluxcd/helm-controller/api/v2beta1"
 )
 
 const replaceImageMock = `apiVersion: v1
@@ -244,7 +244,7 @@ spec:
 	}
 }
 
-func mockKustomize(patches, images string) (*v2.Kustomize, error) {
+func mockKustomize(patches, images string) (*helmv1.Kustomize, error) {
 	var targeted []kustomize.Patch
 	if err := yaml.Unmarshal([]byte(patches), &targeted); err != nil {
 		return nil, err
@@ -253,7 +253,7 @@ func mockKustomize(patches, images string) (*v2.Kustomize, error) {
 	if err := yaml.Unmarshal([]byte(images), &imgs); err != nil {
 		return nil, err
 	}
-	return &v2.Kustomize{
+	return &helmv1.Kustomize{
 		Patches: targeted,
 		Images:  imgs,
 	}, nil
