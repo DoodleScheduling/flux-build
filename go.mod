@@ -5,7 +5,7 @@ go 1.22.0
 require (
 	github.com/Masterminds/semver/v3 v3.2.1
 	github.com/cyphar/filepath-securejoin v0.3.1
-	github.com/docker/cli v27.1.1+incompatible
+	github.com/docker/cli v27.1.2+incompatible
 	github.com/drone/envsubst v1.0.3
 	github.com/fluxcd/helm-controller/api v0.37.4
 	github.com/fluxcd/pkg/apis/kustomize v1.5.0
