@@ -55,7 +55,7 @@ brew install flux-build
 
 ### Docker
 ```
-docker pull ghcr.io/doodlescheduling/flux-build:v0
+docker pull ghcr.io/doodlescheduling/flux-build:v2
 ```
 
 ## Arguments
@@ -93,7 +93,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@24cb9080177205b6e8c946b17badbe402adc938f # v3.4.0
-    - uses: docker://ghcr.io/doodlescheduling/flux-build:v0
+    - uses: docker://ghcr.io/doodlescheduling/flux-build:v2
       env:
         PATHS: ./${{ matrix.cluster }}
         OUTPUT: /dev/null
@@ -118,7 +118,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@24cb9080177205b6e8c946b17badbe402adc938f # v3.4.0
-    - uses: docker://ghcr.io/doodlescheduling/flux-build:v0
+    - uses: docker://ghcr.io/doodlescheduling/flux-build:v2
       env:
         PATHS: ./${{ matrix.cluster }}
         WORKERS: "50"
