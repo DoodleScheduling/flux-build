@@ -98,7 +98,6 @@ signs:
 - cmd: cosign
   certificate: "${artifact}.pem"
   env:
-  - GITHUB_TEOKN=$RUNNER_TOKEN
   - COSIGN_EXPERIMENTAL=1
   args:
   - sign-blob
