@@ -3,8 +3,12 @@ on:
   release:
     types: [published]
 
+permissions: {}
+
 jobs:
   publish-release:
+    permissions:
+      contents: write
     runs-on: ubuntu-latest
     steps:
       - uses: Actions-R-Us/actions-tagger@330ddfac760021349fef7ff62b372f2f691c20fb # v2.0.3
