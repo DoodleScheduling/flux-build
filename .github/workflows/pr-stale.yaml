@@ -1,0 +1,18 @@
+name: pr-stale
+on:
+  schedule:
+    - cron: '30 1 * * *'
+
+permissions: {}
+
+jobs:
+  stale:
+    runs-on: ubuntu-latest
+    permissions:
+      issues: write
+    steps:
+    - uses: actions/stale@28ca1036281a5e5922ead5184a1bbf96e5fc984e # v9.0.0
+      with:
+        days-before-close: '120'
+        stale-pr-label: stale
+        repo-token: ${{ github.token }}

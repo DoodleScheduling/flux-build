@@ -35,7 +35,6 @@ import (
 	"helm.sh/helm/v3/pkg/chart/loader"
 	"helm.sh/helm/v3/pkg/chartutil"
 	helmgetter "helm.sh/helm/v3/pkg/getter"
-	"helm.sh/helm/v3/pkg/postrender"
 	helmreg "helm.sh/helm/v3/pkg/registry"
 	"helm.sh/helm/v3/pkg/release"
 	corev1 "k8s.io/api/core/v1"
@@ -272,11 +271,7 @@ func (h *Helm) renderRelease(ctx context.Context, hr helmv1.HelmRelease, values 
 	apiVersions = append(apiVersions, h.opts.APIVersions...)
 	client.APIVersions = apiVersions
 
-	renderer, err := h.postRenderers(hr)
-	if err != nil {
-		return nil, err
-	}
-	client.PostRenderer = renderer
+	client.PostRenderer = postrenderer.BuildPostRenderers(&hr)
 
 	// If user opted-in to install (or replace) CRDs, install them first.
 	var legacyCRDsPolicy = helmv1.Create
@@ -290,25 +285,6 @@ func (h *Helm) renderRelease(ctx context.Context, hr helmv1.HelmRelease, values 
 	}
 
 	return client.RunWithContext(ctx, chart, values)
-}
-
-// Create post renderer instances from HelmRelease and combine them into
-// a single combined post renderer.
-func (h *Helm) postRenderers(hr helmv1.HelmRelease) (postrender.PostRenderer, error) {
-	var combinedRenderer = postrenderer.NewCombinedPostRenderer()
-	combinedRenderer.AddRenderer(postrenderer.NewPostRendererNamespace(&hr))
-
-	for _, r := range hr.Spec.PostRenderers {
-		if r.Kustomize != nil {
-			combinedRenderer.AddRenderer(postrenderer.NewPostRendererKustomize(r.Kustomize))
-		}
-	}
-	combinedRenderer.AddRenderer(postrenderer.NewPostRendererOriginLabels(&hr))
-
-	if combinedRenderer.Len() == 0 {
-		return nil, nil
-	}
-	return &combinedRenderer, nil
 }
 
 func (h *Helm) validateCRDsPolicy(policy helmv1.CRDsPolicy, defaultValue helmv1.CRDsPolicy) (helmv1.CRDsPolicy, error) {

@@ -1,0 +1,28 @@
+name: pr-trivy
+on: pull_request
+
+permissions: {}
+
+jobs:
+  trivy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Harden Runner
+        uses: step-security/harden-runner@5c7944e73c4c2a096b17a9cb74d65b6c2bbafbde # v2.9.1
+        with:
+          egress-policy: audit
+
+      - name: Trivy fs scan
+        uses: aquasecurity/trivy-action@6e7b7d1fd3e4fef0c5fa8cce1229c54b2c9bd0d8 # 0.24.0
+        with:
+          scan-type: 'fs'
+          ignore-unfixed: true
+          scanners: license,vuln,secret
+          format: 'sarif'
+          output: 'trivy-results.sarif'
+          severity: 'CRITICAL,HIGH'
+
+      - name: Upload Trivy scan results to GitHub Security tab
+        uses: github/codeql-action/upload-sarif@429e1977040da7a23b6822b13c129cd1ba93dbb2 # v3.26.2
+        with:
+          sarif_file: 'trivy-results.sarif'

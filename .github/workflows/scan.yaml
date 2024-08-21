@@ -4,32 +4,25 @@ on:
   push:
     branches: [ master ]
   pull_request:
+    branches: [ master ]
   schedule:
     - cron: '18 10 * * 3'
 
-permissions:
-  contents: read # for actions/checkout to fetch code
-  security-events: write # for codeQL to write security events
+permissions: {}
 
 jobs:
-  fossa:
-    name: fossa
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@0ad4b8fadaa221de15dcec353f45205ec38ea70b # v4
-      - name: Run FOSSA scan and upload build data
-        uses: fossa-contrib/fossa-action@cdc5065bcdee31a32e47d4585df72d66e8e941c2 # v3.0.0
-        with:
-          # FOSSA Push-Only API Token
-          fossa-api-key: 956b9b92c5b16eeca1467cebe104f2c3
-          github-token: ${{ github.token }}
-
   codeql:
-    name: codeql
     runs-on: ubuntu-latest
+    permissions:
+      contents: read # for actions/checkout to fetch code
+      security-events: write # for codeQL to write security events
     steps:
+      - name: Harden Runner
+        uses: step-security/harden-runner@5c7944e73c4c2a096b17a9cb74d65b6c2bbafbde # v2.9.1
+        with:
+          egress-policy: audit
       - name: Checkout repository
-        uses: actions/checkout@0ad4b8fadaa221de15dcec353f45205ec38ea70b # v4
+        uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332 # v4
       - name: Initialize CodeQL
         uses: github/codeql-action/init@f0a12816612c7306b485a22cb164feb43c6df818 # codeql-bundle-20221020
         with:
