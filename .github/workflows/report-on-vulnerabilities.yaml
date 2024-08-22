@@ -23,7 +23,7 @@ jobs:
       with: 
         image-ref: ghcr.io/doodlescheduling/flux-build:latest
         format: json
-        scanners: license,vuln,secret
+        scanners: vuln,secret
         ignore-unfixed: false
         severity: HIGH,CRITICAL
         output: scan.json
