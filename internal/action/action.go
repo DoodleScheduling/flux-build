@@ -66,6 +66,7 @@ func (a *Action) Run(ctx context.Context) error {
 		KubeVersion:      a.KubeVersion,
 		IncludeHelmHooks: a.IncludeHelmHooks,
 		CacheEnabled:     a.CacheEnabled,
+		CacheDir:         a.CacheDir,
 	})
 
 	helmResultPool.Push(worker.Task(func(ctx context.Context) error {

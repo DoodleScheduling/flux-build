@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/doodlescheduling/flux-build/internal/cache"
+	"github.com/doodlescheduling/flux-build/internal/fcache"
 	"github.com/doodlescheduling/flux-build/internal/helm/chart"
 	"github.com/doodlescheduling/flux-build/internal/helm/getter"
 	"github.com/doodlescheduling/flux-build/internal/helm/postrenderer"
@@ -60,7 +61,9 @@ type HelmOpts struct {
 }
 
 type Helm struct {
+	// Only one of Cache or fcache can be used.
 	Cache  *cache.Cache[chart.RemoteReference]
+	fcache *fcache.Cache
 	Logger logr.Logger
 	opts   HelmOpts
 }
@@ -92,7 +95,15 @@ func NewHelmBuilder(logger logr.Logger, opts HelmOpts) *Helm {
 	}
 
 	var c *cache.Cache[chart.RemoteReference]
-	if opts.CacheEnabled {
+	var fc *fcache.Cache
+	if opts.CacheDir != "" {
+		var err error
+		fc, err = fcache.New(opts.CacheDir)
+		if err != nil {
+			logger.Error(err, "can't create file cache")
+			os.Exit(1)
+		}
+	} else if opts.CacheEnabled {
 		c = cache.New[chart.RemoteReference]()
 	}
 
@@ -100,6 +111,7 @@ func NewHelmBuilder(logger logr.Logger, opts HelmOpts) *Helm {
 		Logger: logger,
 		opts:   opts,
 		Cache:  c,
+		fcache: fc,
 	}
 }
 
@@ -613,7 +625,18 @@ func (h *Helm) buildFromHelmRepository(ctx context.Context, obj *sourcev1beta2.H
 
 	ref := chart.RemoteReference{Name: obj.Spec.Chart, Version: obj.Spec.Version}
 	path := TempPathForObj(h.opts.CacheDir, ref.String(), ".tgz")
-	if h.Cache != nil {
+	var flock *os.File
+	if h.fcache != nil {
+		path = h.fcache.Filename(ref.String() + ".tgz")
+		flock, err = h.fcache.GetOrLock(ref.String() + ".tgz")
+		if err != nil {
+			return err
+		}
+		if flock == nil {
+			opts.CachedChart = path
+			h.Logger.V(1).Info("using cached chart artifact", "chart", ref.String(), "path", path)
+		}
+	} else if h.Cache != nil {
 		if p, ok := h.Cache.GetOrLock(ref); ok {
 			path = p.(string)
 			opts.CachedChart = path
@@ -632,7 +655,13 @@ func (h *Helm) buildFromHelmRepository(ctx context.Context, obj *sourcev1beta2.H
 	if err != nil {
 		return err
 	}
-	if h.Cache != nil {
+	if h.fcache != nil {
+		err = h.fcache.SetUnlock(flock)
+		if err != nil {
+			return err
+		}
+		h.Logger.V(1).Info("cached new chart", "chart", ref.String(), "path", path)
+	} else if h.Cache != nil {
 		h.Cache.SetUnlock(ref, path)
 		h.Logger.V(1).Info("cached new chart", "chart", ref.String(), "path", path)
 	}
