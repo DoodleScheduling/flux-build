@@ -3,7 +3,7 @@ module github.com/doodlescheduling/flux-build
 go 1.22.0
 
 require (
-	github.com/Masterminds/semver/v3 v3.2.1
+	github.com/Masterminds/semver/v3 v3.3.0
 	github.com/cyphar/filepath-securejoin v0.3.1
 	github.com/docker/cli v27.2.0+incompatible
 	github.com/drone/envsubst v1.0.3
