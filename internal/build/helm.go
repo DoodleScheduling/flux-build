@@ -655,7 +655,7 @@ func (h *Helm) buildFromHelmRepository(ctx context.Context, obj *sourcev1beta2.H
 	if err != nil {
 		return err
 	}
-	if h.fcache != nil {
+	if h.fcache != nil && flock != nil {
 		err = h.fcache.SetUnlock(flock)
 		if err != nil {
 			return err
