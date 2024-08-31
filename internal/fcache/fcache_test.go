@@ -18,11 +18,13 @@ func TestCache(t *testing.T) {
 	}
 
 	for r := 0; r < 100; r++ {
+		r := r // Remove when govet [loopclosure] will be removed.
 		t.Run(fmt.Sprintf("run-%d", r), func(t *testing.T) {
 			t.Parallel()
 			file := fmt.Sprintf("test-%d.tgz", r)
 			g := new(errgroup.Group)
 			for n := 0; n < 20; n++ {
+				n := n // Remove when govet [loopclosure] will be removed.
 				g.Go(func() error {
 					//time.Sleep(time.Millisecond)
 					fl, err := c.GetOrLock(file)
