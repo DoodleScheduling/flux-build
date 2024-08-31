@@ -3,9 +3,9 @@ module github.com/doodlescheduling/flux-build
 go 1.22.0
 
 require (
-	github.com/Masterminds/semver/v3 v3.2.1
+	github.com/Masterminds/semver/v3 v3.3.0
 	github.com/cyphar/filepath-securejoin v0.3.1
-	github.com/docker/cli v27.1.2+incompatible
+	github.com/docker/cli v27.2.0+incompatible
 	github.com/drone/envsubst v1.0.3
 	github.com/fluxcd/helm-controller/api v1.0.1
 	github.com/fluxcd/pkg/apis/kustomize v1.6.0
