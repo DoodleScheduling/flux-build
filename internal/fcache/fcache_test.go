@@ -26,7 +26,6 @@ func TestCache(t *testing.T) {
 			for n := 0; n < 20; n++ {
 				n := n // Remove when govet [loopclosure] will be removed.
 				g.Go(func() error {
-					//time.Sleep(time.Millisecond)
 					fl, err := c.GetOrLock(file)
 					if err != nil {
 						return err
@@ -37,7 +36,6 @@ func TestCache(t *testing.T) {
 						if err != nil {
 							return err
 						}
-						//time.Sleep(10 * time.Millisecond)
 						_, err = f.Write([]byte("test\n"))
 						if err != nil {
 							return err
