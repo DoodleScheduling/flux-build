@@ -33,7 +33,7 @@ var cacheTypeConvertion = map[string]CacheType{
 func StringToCacheType(s string) (CacheType, error) {
 	ct, ok := cacheTypeConvertion[s]
 	if !ok {
-		return CacheTypeNone, fmt.Errorf("CacheType %s isn't supported", s)
+		return CacheTypeNone, fmt.Errorf("CacheType %q isn't supported", s)
 	}
 	return ct, nil
 }

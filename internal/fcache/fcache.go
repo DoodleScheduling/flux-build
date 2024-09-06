@@ -42,18 +42,18 @@ func isReady(f *os.File) (bool, error) {
 func openLock(filename string, flag int) (*os.File, error) {
 	f, err := os.OpenFile(filename, flag, 0664)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("Can't open lock file %s: %v", filename, err)
 	}
 	err = syscall.Flock(int(f.Fd()), syscall.LOCK_EX)
 	if err != nil {
 		f.Close()
-		return nil, err
+		return nil, fmt.Errorf("Can't lock file %s: %v", filename, err)
 	}
 
 	b, err := isReady(f)
 	if err != nil {
 		f.Close()
-		return nil, err
+		return nil, fmt.Errorf("Can't check if file %s is ready: %v", filename, err)
 	}
 	if b {
 		// The data is there and already.
@@ -84,12 +84,12 @@ func (c *Cache) GetOrLock(filename string) (*os.File, error) {
 	// File should be ready to be used.
 	f, err := os.OpenFile(filename, os.O_RDWR, 0664)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("Can't reopen lock file %s: %v", filename, err)
 	}
 	defer f.Close()
 	b, err := isReady(f)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("Can't check if file is ready: %v", err)
 	}
 	if b {
 		// The data is there and already.
@@ -103,7 +103,7 @@ func (c *Cache) SetUnlock(file *os.File) error {
 	defer file.Close()
 	_, err := file.Write([]byte{ready})
 	if err != nil {
-		return err
+		return fmt.Errorf("Can't write into lock file: %v", err)
 	}
 	return nil
 }

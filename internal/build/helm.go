@@ -629,6 +629,9 @@ func (h *Helm) buildFromHelmRepository(ctx context.Context, obj *sourcev1beta2.H
 	if err != nil {
 		return err
 	}
+	if newItem != nil {
+		h.Logger.V(1).Info("cached new chart", "chart", ref.String(), "path", path)
+	}
 
 	*b = *build
 	return nil
