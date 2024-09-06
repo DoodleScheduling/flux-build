@@ -99,6 +99,10 @@ func (c *Cache) SetUnlock(a any) error {
 		if !ok {
 			return fmt.Errorf("unlock failed, can't convert to *os.File, type is %t", a)
 		}
+		if fl == nil {
+			// Nothing to unlock
+			return nil
+		}
 		err := c.fs.SetUnlock(fl)
 		if err != nil {
 			return err
