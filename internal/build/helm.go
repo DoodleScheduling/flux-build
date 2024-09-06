@@ -2,9 +2,7 @@ package build
 
 import (
 	"context"
-	"crypto/rand"
 	"crypto/tls"
-	"encoding/hex"
 	"errors"
 	"fmt"
 	"os"
@@ -13,8 +11,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/doodlescheduling/flux-build/internal/cache"
-	"github.com/doodlescheduling/flux-build/internal/fcache"
+	"github.com/doodlescheduling/flux-build/internal/cachemgr"
 	"github.com/doodlescheduling/flux-build/internal/helm/chart"
 	"github.com/doodlescheduling/flux-build/internal/helm/getter"
 	"github.com/doodlescheduling/flux-build/internal/helm/postrenderer"
@@ -52,8 +49,7 @@ import (
 type HelmOpts struct {
 	APIVersions      []string
 	FailFast         bool
-	CacheDir         string
-	CacheEnabled     bool
+	Cache            *cachemgr.Cache
 	KubeVersion      *chartutil.KubeVersion
 	Getters          helmgetter.Providers
 	Decoder          runtime.Decoder
@@ -61,9 +57,7 @@ type HelmOpts struct {
 }
 
 type Helm struct {
-	// Only one of Cache or fcache can be used.
-	Cache  *cache.Cache[chart.RemoteReference]
-	fcache *fcache.Cache
+	cache  *cachemgr.Cache
 	Logger logr.Logger
 	opts   HelmOpts
 }
@@ -94,24 +88,10 @@ func NewHelmBuilder(logger logr.Logger, opts HelmOpts) *Helm {
 		opts.Decoder = deserializer
 	}
 
-	var c *cache.Cache[chart.RemoteReference]
-	var fc *fcache.Cache
-	if opts.CacheDir != "" {
-		var err error
-		fc, err = fcache.New(opts.CacheDir)
-		if err != nil {
-			logger.Error(err, "can't create file cache")
-			os.Exit(1)
-		}
-	} else if opts.CacheEnabled {
-		c = cache.New[chart.RemoteReference]()
-	}
-
 	return &Helm{
 		Logger: logger,
 		opts:   opts,
-		Cache:  c,
-		fcache: fc,
+		cache:  opts.Cache,
 	}
 }
 
@@ -624,24 +604,13 @@ func (h *Helm) buildFromHelmRepository(ctx context.Context, obj *sourcev1beta2.H
 	}
 
 	ref := chart.RemoteReference{Name: obj.Spec.Chart, Version: obj.Spec.Version}
-	path := TempPathForObj(h.opts.CacheDir, ref.String(), ".tgz")
-	var flock *os.File
-	if h.fcache != nil {
-		path = h.fcache.Filename(ref.String() + ".tgz")
-		flock, err = h.fcache.GetOrLock(ref.String() + ".tgz")
-		if err != nil {
-			return err
-		}
-		if flock == nil {
-			opts.CachedChart = path
-			h.Logger.V(1).Info("using cached chart artifact", "chart", ref.String(), "path", path)
-		}
-	} else if h.Cache != nil {
-		if p, ok := h.Cache.GetOrLock(ref); ok {
-			path = p.(string)
-			opts.CachedChart = path
-			h.Logger.V(1).Info("using cached chart artifact", "chart", ref.String(), "path", path)
-		}
+	path, newItem, err := h.cache.GetOrLock(normalizedURL, ref)
+	if err != nil {
+		return err
+	}
+	if newItem == nil {
+		opts.CachedChart = path
+		h.Logger.V(1).Info("using cached chart artifact", "chart", ref.String(), "path", path)
 	}
 
 	// Set the VersionMetadata to the object's Generation if ValuesFiles is defined
@@ -655,31 +624,14 @@ func (h *Helm) buildFromHelmRepository(ctx context.Context, obj *sourcev1beta2.H
 	if err != nil {
 		return err
 	}
-	if h.fcache != nil && flock != nil {
-		err = h.fcache.SetUnlock(flock)
-		if err != nil {
-			return err
-		}
-		h.Logger.V(1).Info("cached new chart", "chart", ref.String(), "path", path)
-	} else if h.Cache != nil {
-		h.Cache.SetUnlock(ref, path)
-		h.Logger.V(1).Info("cached new chart", "chart", ref.String(), "path", path)
+
+	err = h.cache.SetUnlock(newItem)
+	if err != nil {
+		return err
 	}
 
 	*b = *build
 	return nil
-}
-
-// TempPathForObj creates a temporary file path in the format of
-// '<dir>/<obj>-<random bytes><suffix>'.
-// If the given dir is empty, os.TempDir is used as a default.
-func TempPathForObj(dir, obj string, suffix string) string {
-	if dir == "" {
-		dir = os.TempDir()
-	}
-	randBytes := make([]byte, 16)
-	_, _ = rand.Read(randBytes)
-	return filepath.Join(dir, obj+"-"+hex.EncodeToString(randBytes)+suffix)
 }
 
 // oidcAuth generates the OIDC credential authenticator based on the specified cloud provider.
