@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"reflect"
 	"strconv"
 	"strings"
 	"time"
@@ -482,7 +481,7 @@ func (h *Helm) buildFromHelmRepository(ctx context.Context, obj *sourcev1beta2.H
 	if err != nil {
 		return err
 	}
-	if newItem == nil || (reflect.ValueOf(newItem).Kind() == reflect.Ptr && reflect.ValueOf(newItem).IsNil()) {
+	if newItem == nil {
 		// There is cached Helm chart, use it and skip creating repository.Downloader.
 		opts.CachedChart = path
 		h.Logger.V(1).Info("using cached chart artifact", "chart", ref.String(), "path", path)
@@ -631,6 +630,9 @@ func (h *Helm) buildFromHelmRepository(ctx context.Context, obj *sourcev1beta2.H
 	err = h.cache.SetUnlock(newItem)
 	if err != nil {
 		return err
+	}
+	if newItem != nil {
+		h.Logger.V(1).Info("cached new chart", "chart", ref.String(), "path", path)
 	}
 
 	*b = *build

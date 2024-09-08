@@ -72,7 +72,10 @@ func (c *Cache) GetOrLock(repo string, ref chart.RemoteReference) (string, any, 
 		if err != nil {
 			return "", nil, err
 		}
-		return path, flock, nil
+		if flock != nil {
+			return path, flock, nil
+		}
+		return path, nil, nil
 	}
 
 	if c.inmemory != nil {
