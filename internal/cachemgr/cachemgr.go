@@ -126,6 +126,8 @@ func (c *Cache) SetUnlock(a any) error {
 	return nil
 }
 
+// RepoGetOrLock returns repository.Downloader if it was already cached or nil and
+// blocks further calls until unlocked.
 func (c *Cache) RepoGetOrLock(url string) repository.Downloader {
 	if c.inmemory == nil {
 		return nil
@@ -139,6 +141,7 @@ func (c *Cache) RepoGetOrLock(url string) repository.Downloader {
 	return nil
 }
 
+// RepoSetUnlock stores repository.Downloader in the cache and unlocks it.
 func (c *Cache) RepoSetUnlock(url string, repo repository.Downloader) {
 	if repo == nil || c.inmemory == nil {
 		return
