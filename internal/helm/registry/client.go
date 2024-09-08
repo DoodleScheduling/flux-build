@@ -37,7 +37,7 @@ func ClientGenerator(isLogin bool) (*registry.Client, string, error) {
 		}
 
 		var errs []error
-		rClient, err := registry.NewClient(registry.ClientOptWriter(io.Discard), registry.ClientOptCredentialsFile(credentialsFile.Name()), registry.ClientOptEnableCache(true))
+		rClient, err := registry.NewClient(registry.ClientOptWriter(io.Discard), registry.ClientOptCredentialsFile(credentialsFile.Name()))
 		if err != nil {
 			errs = append(errs, err)
 			// attempt to delete the temporary file
