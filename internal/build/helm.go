@@ -466,6 +466,134 @@ func (h *Helm) buildFromHelmRepository(ctx context.Context, obj *sourcev1beta2.H
 		helmgetter.WithPassCredentialsAll(repo.Spec.PassCredentials),
 	}
 
+	if secret, err := h.getHelmRepositorySecret(ctx, repo, db); secret != nil || err != nil {
+		if err != nil {
+			return err
+		}
+
+		// Build client options from secret
+		opts, tlsCfg, err := h.clientOptionsFromSecret(secret, normalizedURL)
+		if err != nil {
+			return err
+		}
+		clientOpts = append(clientOpts, opts...)
+		tlsConfig = tlsCfg
+
+		// Build registryClient options from secret
+		keychain, err = registry.LoginOptionFromSecret(normalizedURL, *secret)
+		if err != nil {
+			return fmt.Errorf("failed to configure Helm client with secret data: %w", err)
+		}
+	} else if repo.Spec.Provider != sourcev1beta2.GenericOCIProvider && repo.Spec.Type == sourcev1beta2.HelmRepositoryTypeOCI {
+		auth, authErr := oidcAuth(ctxTimeout, repo.Spec.URL, repo.Spec.Provider)
+		if authErr != nil && !errors.Is(authErr, oci.ErrUnconfiguredProvider) {
+			return fmt.Errorf("failed to get credential from %s: %w", repo.Spec.Provider, authErr)
+		}
+		if auth != nil {
+			authenticator = auth
+		}
+	}
+
+	loginOpt, err := makeLoginOption(authenticator, keychain, normalizedURL)
+	if err != nil {
+		return err
+	}
+
+	// Initialize the chart repository
+	var chartRepo repository.Downloader
+	switch repo.Spec.Type {
+	case sourcev1beta2.HelmRepositoryTypeOCI:
+		if !helmreg.IsOCI(normalizedURL) {
+			return fmt.Errorf("invalid OCI registry URL: %s", normalizedURL)
+		}
+
+		// with this function call, we create a temporary file to store the credentials if needed.
+		// this is needed because otherwise the credentials are stored in ~/.docker/config.json.
+		// TODO@souleb: remove this once the registry move to Oras v2
+		// or rework to enable reusing credentials to avoid the unneccessary handshake operations
+		registryClient, _, err := registry.ClientGenerator(loginOpt != nil)
+		if err != nil {
+			return fmt.Errorf("failed to construct Helm client: %w", err)
+		}
+
+		/*if credentialsFile != "" {
+			defer func() {
+				if err := os.Remove(credentialsFile); err != nil {
+					//r.eventLogf(ctx, obj, corev1.EventTypeWarning, meta.FailedReason,
+					//		"failed to delete temporary credentials file: %s", err)
+				}
+			}()
+		}*/
+
+		var verifiers []soci.Verifier
+		/*if obj.Spec.Verify != nil {
+			provider := obj.Spec.Verify.Provider
+			verifiers, err = h.makeVerifiers(ctx, obj, authenticator, keychain)
+			if err != nil {
+				if obj.Spec.Verify.SecretRef == nil {
+					provider = fmt.Sprintf("%s keyless", provider)
+				}
+				return fmt.Errorf("failed to verify the signature using provider '%s': %w", provider, err)
+			}
+		}*/
+
+		// Tell the chart repository to use the OCI client with the configured getter
+		clientOpts = append(clientOpts, helmgetter.WithRegistryClient(registryClient))
+		ociChartRepo, err := repository.NewOCIChartRepository(normalizedURL,
+			repository.WithOCIGetter(h.opts.Getters),
+			repository.WithOCIGetterOptions(clientOpts),
+			repository.WithOCIRegistryClient(registryClient),
+			repository.WithVerifiers(verifiers))
+		if err != nil {
+			return err
+		}
+		chartRepo = ociChartRepo
+
+		// If login options are configured, use them to login to the registry
+		// The OCIGetter will later retrieve the stored credentials to pull the chart
+		if loginOpt != nil {
+			err = ociChartRepo.Login(loginOpt)
+			if err != nil {
+				return fmt.Errorf("failed to login to OCI registry: %w", err)
+			}
+		}
+	default:
+		httpChartRepo, err := repository.NewChartRepository(normalizedURL /*r.Storage.LocalPath(*repo.GetArtifact())*/, "/tmp", h.opts.Getters, tlsConfig, clientOpts...)
+		if err != nil {
+			return err
+		}
+
+		// NB: this needs to be deferred first, as otherwise the Index will disappear
+		// before we had a chance to cache it.
+		/*defer func() {
+			if err := httpChartRepo.Clear(); err != nil {
+				ctrl.LoggerFrom(ctx).Error(err, "failed to clear Helm repository index")
+			}
+		}()*/
+
+		// Attempt to load the index from the cache.
+		/*if r.Cache != nil {
+			if index, ok := r.Cache.Get(repo.GetArtifact().Path); ok {
+				r.IncCacheEvents(cache.CacheEventTypeHit, repo.Name, repo.Namespace)
+				r.Cache.SetExpiration(repo.GetArtifact().Path, r.TTL)
+				httpChartRepo.Index = index.(*helmrepo.IndexFile)
+			} else {
+				r.IncCacheEvents(cache.CacheEventTypeMiss, repo.Name, repo.Namespace)
+				defer func() {
+					// If we succeed in loading the index, cache it.
+					if httpChartRepo.Index != nil {
+						if err = r.Cache.Set(repo.GetArtifact().Path, httpChartRepo.Index, r.TTL); err != nil {
+							r.eventLogf(ctx, obj, eventv1.EventTypeTrace, sourcev1.CacheOperationFailedReason, "failed to cache index: %s", err)
+						}
+					}
+				}()
+			}
+		}*/
+		chartRepo = httpChartRepo
+	}
+
+	// Construct the chart builder with scoped configuration
+	cb := chart.NewRemoteBuilder(chartRepo)
 	opts := chart.BuildOptions{
 		ValuesFiles: obj.GetValuesFiles(),
 		//Force:       obj.Generation != obj.Status.ObservedGeneration,
@@ -475,146 +603,16 @@ func (h *Helm) buildFromHelmRepository(ctx context.Context, obj *sourcev1beta2.H
 		Verify: obj.Spec.Verify != nil && obj.Spec.Verify.Provider != "",
 	}
 
-	var chartRepo repository.Downloader
 	ref := chart.RemoteReference{Name: obj.Spec.Chart, Version: obj.Spec.Version}
 	path, newItem, err := h.cache.GetOrLock(normalizedURL, ref)
 	if err != nil {
 		return err
 	}
 	if newItem == nil {
-		// There is cached Helm chart, use it and skip creating repository.Downloader.
 		opts.CachedChart = path
 		h.Logger.V(1).Info("using cached chart artifact", "chart", ref.String(), "path", path)
-	} else {
-		// Create proper repository.Downloader.
-		if secret, err := h.getHelmRepositorySecret(ctx, repo, db); secret != nil || err != nil {
-			if err != nil {
-				return err
-			}
-
-			// Build client options from secret
-			opts, tlsCfg, err := h.clientOptionsFromSecret(secret, normalizedURL)
-			if err != nil {
-				return err
-			}
-			clientOpts = append(clientOpts, opts...)
-			tlsConfig = tlsCfg
-
-			// Build registryClient options from secret
-			keychain, err = registry.LoginOptionFromSecret(normalizedURL, *secret)
-			if err != nil {
-				return fmt.Errorf("failed to configure Helm client with secret data: %w", err)
-			}
-		} else if repo.Spec.Provider != sourcev1beta2.GenericOCIProvider && repo.Spec.Type == sourcev1beta2.HelmRepositoryTypeOCI {
-			auth, authErr := oidcAuth(ctxTimeout, repo.Spec.URL, repo.Spec.Provider)
-			if authErr != nil && !errors.Is(authErr, oci.ErrUnconfiguredProvider) {
-				return fmt.Errorf("failed to get credential from %s: %w", repo.Spec.Provider, authErr)
-			}
-			if auth != nil {
-				authenticator = auth
-			}
-		}
-
-		loginOpt, err := makeLoginOption(authenticator, keychain, normalizedURL)
-		if err != nil {
-			return err
-		}
-
-		// Initialize the chart repository
-		switch repo.Spec.Type {
-		case sourcev1beta2.HelmRepositoryTypeOCI:
-			if !helmreg.IsOCI(normalizedURL) {
-				return fmt.Errorf("invalid OCI registry URL: %s", normalizedURL)
-			}
-
-			// with this function call, we create a temporary file to store the credentials if needed.
-			// this is needed because otherwise the credentials are stored in ~/.docker/config.json.
-			// TODO@souleb: remove this once the registry move to Oras v2
-			// or rework to enable reusing credentials to avoid the unneccessary handshake operations
-			registryClient, _, err := registry.ClientGenerator(loginOpt != nil)
-			if err != nil {
-				return fmt.Errorf("failed to construct Helm client: %w", err)
-			}
-
-			/*if credentialsFile != "" {
-				defer func() {
-					if err := os.Remove(credentialsFile); err != nil {
-						//r.eventLogf(ctx, obj, corev1.EventTypeWarning, meta.FailedReason,
-						//		"failed to delete temporary credentials file: %s", err)
-					}
-				}()
-			}*/
-
-			var verifiers []soci.Verifier
-			/*if obj.Spec.Verify != nil {
-				provider := obj.Spec.Verify.Provider
-				verifiers, err = h.makeVerifiers(ctx, obj, authenticator, keychain)
-				if err != nil {
-					if obj.Spec.Verify.SecretRef == nil {
-						provider = fmt.Sprintf("%s keyless", provider)
-					}
-					return fmt.Errorf("failed to verify the signature using provider '%s': %w", provider, err)
-				}
-			}*/
-
-			// Tell the chart repository to use the OCI client with the configured getter
-			clientOpts = append(clientOpts, helmgetter.WithRegistryClient(registryClient))
-			ociChartRepo, err := repository.NewOCIChartRepository(normalizedURL,
-				repository.WithOCIGetter(h.opts.Getters),
-				repository.WithOCIGetterOptions(clientOpts),
-				repository.WithOCIRegistryClient(registryClient),
-				repository.WithVerifiers(verifiers))
-			if err != nil {
-				return err
-			}
-			chartRepo = ociChartRepo
-
-			// If login options are configured, use them to login to the registry
-			// The OCIGetter will later retrieve the stored credentials to pull the chart
-			if loginOpt != nil {
-				err = ociChartRepo.Login(loginOpt)
-				if err != nil {
-					return fmt.Errorf("failed to login to OCI registry: %w", err)
-				}
-			}
-		default:
-			httpChartRepo, err := repository.NewChartRepository(normalizedURL /*r.Storage.LocalPath(*repo.GetArtifact())*/, "/tmp", h.opts.Getters, tlsConfig, clientOpts...)
-			if err != nil {
-				return err
-			}
-
-			// NB: this needs to be deferred first, as otherwise the Index will disappear
-			// before we had a chance to cache it.
-			/*defer func() {
-				if err := httpChartRepo.Clear(); err != nil {
-					ctrl.LoggerFrom(ctx).Error(err, "failed to clear Helm repository index")
-				}
-			}()*/
-
-			// Attempt to load the index from the cache.
-			/*if r.Cache != nil {
-				if index, ok := r.Cache.Get(repo.GetArtifact().Path); ok {
-					r.IncCacheEvents(cache.CacheEventTypeHit, repo.Name, repo.Namespace)
-					r.Cache.SetExpiration(repo.GetArtifact().Path, r.TTL)
-					httpChartRepo.Index = index.(*helmrepo.IndexFile)
-				} else {
-					r.IncCacheEvents(cache.CacheEventTypeMiss, repo.Name, repo.Namespace)
-					defer func() {
-						// If we succeed in loading the index, cache it.
-						if httpChartRepo.Index != nil {
-							if err = r.Cache.Set(repo.GetArtifact().Path, httpChartRepo.Index, r.TTL); err != nil {
-								r.eventLogf(ctx, obj, eventv1.EventTypeTrace, sourcev1.CacheOperationFailedReason, "failed to cache index: %s", err)
-							}
-						}
-					}()
-				}
-			}*/
-			chartRepo = httpChartRepo
-		}
 	}
 
-	// Construct the chart builder with scoped configuration
-	cb := chart.NewRemoteBuilder(chartRepo)
 	// Set the VersionMetadata to the object's Generation if ValuesFiles is defined
 	// This ensures changes can be noticed by the Artifact consumer
 	if len(opts.GetValuesFiles()) > 0 {
