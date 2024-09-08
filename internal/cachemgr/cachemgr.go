@@ -12,6 +12,7 @@ import (
 	"github.com/doodlescheduling/flux-build/internal/cache"
 	"github.com/doodlescheduling/flux-build/internal/fcache"
 	"github.com/doodlescheduling/flux-build/internal/helm/chart"
+	"github.com/doodlescheduling/flux-build/internal/helm/repository"
 )
 
 // CacheType is enum of supported cache types.
@@ -125,6 +126,28 @@ func (c *Cache) SetUnlock(a any) error {
 	return nil
 }
 
+func (c *Cache) RepoGetOrLock(url string) repository.Downloader {
+	if c.inmemory == nil {
+		return nil
+	}
+
+	key := CacheKey{Repo: url}
+	r, ok := c.inmemory.GetOrLock(key)
+	if ok {
+		return r.(repository.Downloader)
+	}
+	return nil
+}
+
+func (c *Cache) RepoSetUnlock(url string, repo repository.Downloader) {
+	if repo == nil || c.inmemory == nil {
+		return
+	}
+
+	key := CacheKey{Repo: url}
+	c.inmemory.SetUnlock(key, repo)
+}
+
 func New(cacheType, cacheDir string) (*Cache, error) {
 	ct, err := StringToCacheType(cacheType)
 	if err != nil {
@@ -143,7 +166,7 @@ func New(cacheType, cacheDir string) (*Cache, error) {
 		if err != nil {
 			return nil, err
 		}
-		return &Cache{dir: cacheDir, fs: fc}, nil
+		return &Cache{dir: cacheDir, fs: fc, inmemory: cache.New[CacheKey]()}, nil
 	}
 
 	dir, err := os.MkdirTemp("", "helmcharts")
