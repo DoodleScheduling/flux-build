@@ -55,7 +55,7 @@ brew install flux-build
 
 ### Docker
 ```
-docker pull ghcr.io/doodlescheduling/flux-build:v2
+docker pull ghcr.io/doodlescheduling/flux-build:v3
 ```
 
 ## Arguments
@@ -69,7 +69,7 @@ docker pull ghcr.io/doodlescheduling/flux-build:v2
 | `--cache`  | `CACHE`  | `inmemory` | Type of Helm charts cache to use, options: `none`, `inmemory`, `fs`|
 | `--cache-dir`  | `CACHE_DIR`  | `` | Directory for `fs` Helm charts cache |
 | `--api-versions` | `API_VERSIONS` | `` | Kubernetes api versions used for Capabilities.APIVersions (See helm help) |
-| `--kube-version`  | `KUBE_VERSION` | `1.27.0` | Kubernetes version (Some helm charts validate manifests against a specific kubernetes version) |
+| `--kube-version`  | `KUBE_VERSION` | `1.31.0` | Kubernetes version (Some helm charts validate manifests against a specific kubernetes version) |
 | `--output`  | `OUTPUT` | `/dev/stdout` | Path to output file |
 | `--include-helm-hooks` | `INCLUDE_HELM_HOOKS` | `false` | Include helm hooks in the output |
 
@@ -94,7 +94,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@24cb9080177205b6e8c946b17badbe402adc938f # v3.4.0
-    - uses: docker://ghcr.io/doodlescheduling/flux-build:v2
+    - uses: docker://ghcr.io/doodlescheduling/flux-build:v3
       env:
         PATHS: ./${{ matrix.cluster }}
         OUTPUT: /dev/null
@@ -119,7 +119,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@24cb9080177205b6e8c946b17badbe402adc938f # v3.4.0
-    - uses: docker://ghcr.io/doodlescheduling/flux-build:v2
+    - uses: docker://ghcr.io/doodlescheduling/flux-build:v3
       env:
         PATHS: ./${{ matrix.cluster }}
         WORKERS: "50"
