@@ -2,12 +2,13 @@ package action
 
 import (
 	"context"
+	"fmt"
 	"io"
 	"os"
 
+	"github.com/alitto/pond"
 	"github.com/doodlescheduling/flux-build/internal/build"
 	"github.com/doodlescheduling/flux-build/internal/cachemgr"
-	"github.com/doodlescheduling/flux-build/internal/worker"
 	helmv1 "github.com/fluxcd/helm-controller/api/v2beta1"
 	"github.com/go-logr/logr"
 	"helm.sh/helm/v3/pkg/chartutil"
@@ -31,33 +32,34 @@ func (a *Action) Run(ctx context.Context) error {
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
-	abort := func(err error) error {
-		if err == nil {
-			return nil
+	errs := make(chan error)
+	var lastErr error
+	helmResultPool := pond.New(1, 1, pond.Context(ctx))
+	kustomizePool := pond.New(len(a.Paths), len(a.Paths), pond.Context(ctx))
+	helmPool := pond.New(a.Workers, a.Workers, pond.Context(ctx))
+	resourcePool := pond.New(1, 1, pond.Context(ctx))
+
+	defer func() {
+		if lastErr != nil && !a.AllowFailure {
+			os.Exit(1)
 		}
+	}()
 
-		if a.FailFast {
-			cancel()
+	go func() {
+		for err := range errs {
+			fmt.Printf("err %#v\n", err)
+			if err == nil {
+				continue
+			}
+
+			lastErr = err
+
+			if a.FailFast {
+				cancel()
+			}
 		}
-
-		return err
-	}
-
-	helmResultPool := worker.New(ctx, worker.PoolOptions{
-		Workers: 1,
-	})
-
-	kustomizePool := worker.New(ctx, worker.PoolOptions{
-		Workers: len(a.Paths),
-	})
-
-	helmPool := worker.New(ctx, worker.PoolOptions{
-		Workers: a.Workers,
-	})
-
-	resourcePool := worker.New(ctx, worker.PoolOptions{
-		Workers: 1,
-	})
+		panic("exit")
+	}()
 
 	resources := make(chan resmap.ResMap, len(a.Paths))
 	manifests := make(chan resmap.ResMap, a.Workers)
@@ -68,74 +70,52 @@ func (a *Action) Run(ctx context.Context) error {
 		Cache:            a.Cache,
 	})
 
-	helmResultPool.Push(worker.Task(func(ctx context.Context) error {
-		for {
-			select {
-			case <-ctx.Done():
-				return nil
-			case index, ok := <-manifests:
-				if !ok {
-					return nil
-				}
+	helmResultPool.Submit(func() {
+		for index := range manifests {
+			y, err := index.AsYaml()
+			if err != nil {
+				a.Logger.Error(err, "failed to encode as yaml")
+				errs <- err
+				continue
+			}
 
-				y, err := index.AsYaml()
-				if err != nil {
-					a.Logger.Error(err, "failed to encode as yaml")
-					return abort(err)
-				}
-
-				_, err = a.Output.Write(append([]byte("---\n"), y...))
-				if err != nil {
-
-					a.Logger.Error(err, "failed to write helm manifests to output")
-					return abort(err)
-				}
+			_, err = a.Output.Write(append([]byte("---\n"), y...))
+			if err != nil {
+				a.Logger.Error(err, "failed to write helm manifests to output")
+				errs <- err
+				continue
 			}
 		}
-	}))
+	})
 
 	for _, path := range a.Paths {
 		p := path
 		a.Logger.Info("build kustomize path", "path", p)
 
-		kustomizePool.Push(worker.Task(func(ctx context.Context) error {
+		kustomizePool.Submit(func() {
 			if index, err := build.Kustomize(ctx, p); err != nil {
 				a.Logger.Error(err, "failed build kustomization", "path", p)
-				return abort(err)
+				errs <- err
 			} else {
 				manifests <- index
 				resources <- index
 			}
-
-			return nil
-		}))
+		})
 	}
 
 	index := make(build.ResourceIndex)
-	resourcePool.Push(worker.Task(func(ctx context.Context) error {
-		for {
-			select {
-			case <-ctx.Done():
-				return nil
-			case build, ok := <-resources:
-				if !ok {
-					return nil
-				}
-
-				if err := index.Push(build.Resources()); err != nil {
-					return abort(err)
-				}
-
-				if ctx.Err() != nil {
-					return nil
-				}
+	resourcePool.Submit(func() {
+		for build := range resources {
+			if err := index.Push(build.Resources()); err != nil {
+				errs <- err
+				continue
 			}
 		}
-	}))
+	})
 
-	a.exit(kustomizePool)
+	kustomizePool.StopAndWait()
 	close(resources)
-	a.exit(resourcePool)
+	resourcePool.StopAndWait()
 
 	for _, r := range index {
 		res := r
@@ -143,36 +123,27 @@ func (a *Action) Run(ctx context.Context) error {
 			continue
 		}
 
-		helmPool.Push(worker.Task(func(ctx context.Context) error {
-			a.Logger.Info("build helm release", "namespace", res.GetNamespace(), "name", res.GetName())
+		if ctx.Err() != nil {
+			break
+		}
 
+		helmPool.Submit(func() {
+			a.Logger.Info("build helm release", "namespace", res.GetNamespace(), "name", res.GetName())
 			index, err := helmBuilder.Build(ctx, res, index)
 			if err != nil {
 				a.Logger.Error(err, "failed build helmrelease", "namespace", res.GetNamespace(), "name", res.GetName())
-				return abort(err)
-			}
-
-			if ctx.Err() != nil {
-				return nil
+				errs <- err
+				return
 			}
 
 			manifests <- index
-			return nil
-		}))
+		})
 	}
 
-	a.exit(helmPool)
+	helmPool.StopAndWait()
 	close(manifests)
-	a.exit(helmResultPool)
+	helmResultPool.StopAndWait()
+	close(errs)
 
 	return nil
-}
-
-func (a *Action) exit(waiters ...worker.Waiter) {
-	for _, w := range waiters {
-		err := w.Wait()
-		if err != nil && !a.AllowFailure {
-			os.Exit(1)
-		}
-	}
 }
