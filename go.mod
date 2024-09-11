@@ -1,6 +1,8 @@
 module github.com/doodlescheduling/flux-build
 
-go 1.22.0
+go 1.22.5
+
+toolchain go1.23.1
 
 require (
 	github.com/Masterminds/semver/v3 v3.3.0
@@ -21,7 +23,7 @@ require (
 	github.com/otiai10/copy v1.14.0
 	github.com/sethvargo/go-envconfig v1.1.0
 	github.com/sigstore/cosign/v2 v2.2.4
-	github.com/sigstore/sigstore v1.8.7
+	github.com/sigstore/sigstore v1.8.9
 	github.com/spf13/pflag v1.0.5
 	go.uber.org/zap v1.27.0
 	golang.org/x/sync v0.8.0
