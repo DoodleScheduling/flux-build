@@ -2,7 +2,6 @@ package action
 
 import (
 	"context"
-	"fmt"
 	"io"
 	"os"
 
@@ -47,7 +46,6 @@ func (a *Action) Run(ctx context.Context) error {
 
 	go func() {
 		for err := range errs {
-			fmt.Printf("err %#v\n", err)
 			if err == nil {
 				continue
 			}
@@ -58,7 +56,6 @@ func (a *Action) Run(ctx context.Context) error {
 				cancel()
 			}
 		}
-		panic("exit")
 	}()
 
 	resources := make(chan resmap.ResMap, len(a.Paths))
