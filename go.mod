@@ -6,6 +6,7 @@ toolchain go1.22.7
 
 require (
 	github.com/Masterminds/semver/v3 v3.3.0
+	github.com/alitto/pond v1.9.2
 	github.com/cyphar/filepath-securejoin v0.3.1
 	github.com/docker/cli v27.2.1+incompatible
 	github.com/drone/envsubst v1.0.3
@@ -27,7 +28,7 @@ require (
 	github.com/spf13/pflag v1.0.5
 	go.uber.org/zap v1.27.0
 	golang.org/x/sync v0.8.0
-	helm.sh/helm/v3 v3.15.4
+	helm.sh/helm/v3 v3.16.0
 	k8s.io/api v0.31.0
 	k8s.io/apimachinery v0.31.0
 	k8s.io/helm v2.17.0+incompatible
@@ -85,7 +86,6 @@ require (
 	github.com/alibabacloud-go/tea-utils v1.4.5 // indirect
 	github.com/alibabacloud-go/tea-utils/v2 v2.0.6 // indirect
 	github.com/alibabacloud-go/tea-xml v1.1.3 // indirect
-	github.com/alitto/pond v1.9.2 // indirect
 	github.com/aliyun/credentials-go v1.3.9 // indirect
 	github.com/asaskevich/govalidator v0.0.0-20230301143203-a9d515a09cc2 // indirect
 	github.com/aws/aws-sdk-go-v2 v1.30.5 // indirect
