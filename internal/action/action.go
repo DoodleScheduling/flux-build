@@ -145,7 +145,6 @@ func (a *Action) Run(ctx context.Context) error {
 
 		helmPool.Push(worker.Task(func(ctx context.Context) error {
 			a.Logger.Info("build helm release", "namespace", res.GetNamespace(), "name", res.GetName())
-
 			index, err := helmBuilder.Build(ctx, res, index)
 			if err != nil {
 				a.Logger.Error(err, "failed build helmrelease", "namespace", res.GetNamespace(), "name", res.GetName())
