@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/doodlescheduling/flux-build/internal/action"
+	"github.com/doodlescheduling/flux-build/internal/cachemgr"
 	"github.com/go-logr/logr"
 	"github.com/go-logr/zapr"
 	"github.com/sethvargo/go-envconfig"
@@ -30,6 +31,8 @@ type Config struct {
 	APIVersions      []string `env:"API_VERSIONS"`
 	KubeVersion      string   `env:"KUBE_VERSION"`
 	CacheEnabled     bool     `env:"CACHE_ENABLED"`
+	CacheDir         string   `env:"CACHE_DIR"`
+	Cache            string   `env:"CACHE"`
 }
 
 var (
@@ -46,7 +49,8 @@ func init() {
 	flag.IntVar(&config.Workers, "workers", 0, "Workers used to parse manifests")
 	flag.StringVarP(&config.KubeVersion, "kube-version", "", "", "Kubernetes version (Some helm charts validate manifests against a specific kubernetes version)")
 	flag.StringSliceVarP(&config.APIVersions, "api-versions", "", nil, "Kubernetes api versions used for Capabilities.APIVersions (Comma separated)")
-	flag.BoolVar(&config.CacheEnabled, "cache-enabled", true, "Is Helm charts cache enabled")
+	flag.StringVar(&config.Cache, "cache", "inmemory", "Which Helm cache to use, one of none, inmemory, fs")
+	flag.StringVar(&config.CacheDir, "cache-dir", "~/.cache/flux-build", "Dir for Helm charts file cache")
 }
 
 func must(err error) {
@@ -94,6 +98,11 @@ func main() {
 		kubeVersion = v
 	}
 
+	cache, err := cachemgr.New(config.Cache, config.CacheDir)
+	if err != nil {
+		must(err)
+	}
+
 	out, err := os.OpenFile(config.Output, os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0775)
 	must(err)
 
@@ -107,7 +116,7 @@ func main() {
 		Output:           out,
 		IncludeHelmHooks: config.IncludeHelmHooks,
 		Logger:           logger,
-		CacheEnabled:     config.CacheEnabled,
+		Cache:            cache,
 	}
 
 	must(a.Run(ctx))

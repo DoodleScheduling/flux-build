@@ -6,6 +6,7 @@ import (
 	"os"
 
 	"github.com/doodlescheduling/flux-build/internal/build"
+	"github.com/doodlescheduling/flux-build/internal/cachemgr"
 	"github.com/doodlescheduling/flux-build/internal/worker"
 	helmv1 "github.com/fluxcd/helm-controller/api/v2beta1"
 	"github.com/go-logr/logr"
@@ -18,8 +19,7 @@ type Action struct {
 	AllowFailure     bool
 	FailFast         bool
 	Workers          int
-	CacheDir         string
-	CacheEnabled     bool
+	Cache            *cachemgr.Cache
 	Paths            []string
 	APIVersions      []string
 	IncludeHelmHooks bool
@@ -65,7 +65,7 @@ func (a *Action) Run(ctx context.Context) error {
 		APIVersions:      a.APIVersions,
 		KubeVersion:      a.KubeVersion,
 		IncludeHelmHooks: a.IncludeHelmHooks,
-		CacheEnabled:     a.CacheEnabled,
+		Cache:            a.Cache,
 	})
 
 	helmResultPool.Push(worker.Task(func(ctx context.Context) error {
