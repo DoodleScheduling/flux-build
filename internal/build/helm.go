@@ -182,13 +182,14 @@ func (h *Helm) Build(ctx context.Context, r *resource.Resource, db map[ref]*reso
 }
 
 func (h *Helm) getRepository(repository *resource.Resource) (runtime.Object, error) {
-	repository.SetGvk(resid.Gvk{
+	copy := repository.DeepCopy()
+	copy.SetGvk(resid.Gvk{
 		Group:   sourcev1.GroupVersion.Group,
 		Version: sourcev1.GroupVersion.Version,
 		Kind:    sourcev1.HelmRepositoryKind,
 	})
 
-	b, err := repository.AsYAML()
+	b, err := copy.AsYAML()
 	if err != nil {
 		return nil, fmt.Errorf("failed marshal repository as yaml: %w", err)
 	}
