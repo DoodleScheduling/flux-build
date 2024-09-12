@@ -30,7 +30,7 @@ require (
 	golang.org/x/sync v0.8.0
 	helm.sh/helm/v3 v3.16.0
 	k8s.io/api v0.31.0
-	k8s.io/apimachinery v0.31.0
+	k8s.io/apimachinery v0.31.1
 	k8s.io/helm v2.17.0+incompatible
 	sigs.k8s.io/kustomize/api v0.17.3
 	sigs.k8s.io/kustomize/kyaml v0.17.2
