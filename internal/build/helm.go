@@ -11,8 +11,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/doodlescheduling/flux-build/internal/cachemgr"
+	memcache "github.com/doodlescheduling/flux-build/internal/cache"
 	"github.com/doodlescheduling/flux-build/internal/helm/chart"
+	chartcache "github.com/doodlescheduling/flux-build/internal/helm/chart/cache"
 	"github.com/doodlescheduling/flux-build/internal/helm/getter"
 	"github.com/doodlescheduling/flux-build/internal/helm/postrenderer"
 	"github.com/doodlescheduling/flux-build/internal/helm/registry"
@@ -48,17 +49,22 @@ import (
 type HelmOpts struct {
 	APIVersions      []string
 	FailFast         bool
-	Cache            *cachemgr.Cache
+	Cache            chartcache.Interface
 	KubeVersion      *chartutil.KubeVersion
 	Getters          helmgetter.Providers
 	Decoder          runtime.Decoder
 	IncludeHelmHooks bool
 }
 
+type CacheKey struct {
+	Repo string
+}
+
 type Helm struct {
-	cache  *cachemgr.Cache
-	Logger logr.Logger
-	opts   HelmOpts
+	cache     chartcache.Interface
+	Logger    logr.Logger
+	opts      HelmOpts
+	repoCache *memcache.Cache[CacheKey]
 }
 
 func NewHelmBuilder(logger logr.Logger, opts HelmOpts) *Helm {
@@ -87,9 +93,10 @@ func NewHelmBuilder(logger logr.Logger, opts HelmOpts) *Helm {
 	}
 
 	return &Helm{
-		Logger: logger,
-		opts:   opts,
-		cache:  opts.Cache,
+		Logger:    logger,
+		opts:      opts,
+		cache:     opts.Cache,
+		repoCache: memcache.New[CacheKey](),
 	}
 }
 
@@ -455,9 +462,14 @@ func (h *Helm) buildFromHelmRepository(ctx context.Context, obj *sourcev1.HelmCh
 		return fmt.Errorf("failed to normalize url: %w", err)
 	}
 
-	chartRepo := h.cache.RepoGetOrLock(normalizedURL)
-	if chartRepo == nil {
+	var chartRepo repository.Downloader
+	repoCacheKey := CacheKey{Repo: normalizedURL}
+	r, ok := h.repoCache.GetOrLock(repoCacheKey)
+	if ok {
+		chartRepo = r.(repository.Downloader)
+	}
 
+	if chartRepo == nil {
 		h.Logger.V(1).Info("using chart repo", "chartrepo", normalizedURL)
 
 		// Construct the Getter options from the HelmRepository data
@@ -558,41 +570,15 @@ func (h *Helm) buildFromHelmRepository(ctx context.Context, obj *sourcev1.HelmCh
 				}
 			}
 		default:
-			httpChartRepo, err := repository.NewChartRepository(normalizedURL /*r.Storage.LocalPath(*repo.GetArtifact())*/, "/tmp", h.opts.Getters, tlsConfig, clientOpts...)
+			httpChartRepo, err := repository.NewChartRepository(normalizedURL, os.TempDir(), h.opts.Getters, tlsConfig, clientOpts...)
 			if err != nil {
 				return err
 			}
 
-			// NB: this needs to be deferred first, as otherwise the Index will disappear
-			// before we had a chance to cache it.
-			/*defer func() {
-				if err := httpChartRepo.Clear(); err != nil {
-					ctrl.LoggerFrom(ctx).Error(err, "failed to clear Helm repository index")
-				}
-			}()*/
-
-			// Attempt to load the index from the cache.
-			/*if r.Cache != nil {
-				if index, ok := r.Cache.Get(repo.GetArtifact().Path); ok {
-					r.IncCacheEvents(cache.CacheEventTypeHit, repo.Name, repo.Namespace)
-					r.Cache.SetExpiration(repo.GetArtifact().Path, r.TTL)
-					httpChartRepo.Index = index.(*helmrepo.IndexFile)
-				} else {
-					r.IncCacheEvents(cache.CacheEventTypeMiss, repo.Name, repo.Namespace)
-					defer func() {
-						// If we succeed in loading the index, cache it.
-						if httpChartRepo.Index != nil {
-							if err = r.Cache.Set(repo.GetArtifact().Path, httpChartRepo.Index, r.TTL); err != nil {
-								r.eventLogf(ctx, obj, eventv1.EventTypeTrace, sourcev1.CacheOperationFailedReason, "failed to cache index: %s", err)
-							}
-						}
-					}()
-				}
-			}*/
 			chartRepo = httpChartRepo
 		}
 
-		h.cache.RepoSetUnlock(normalizedURL, chartRepo)
+		h.repoCache.SetUnlock(repoCacheKey, chartRepo)
 	}
 
 	// Construct the chart builder with scoped configuration
@@ -607,11 +593,15 @@ func (h *Helm) buildFromHelmRepository(ctx context.Context, obj *sourcev1.HelmCh
 	}
 
 	ref := chart.RemoteReference{Name: obj.Spec.Chart, Version: obj.Spec.Version}
-	path, newItem, err := h.cache.GetOrLock(normalizedURL, ref)
+	path, chartCacheKey, err := h.cache.GetOrLock(normalizedURL, ref)
 	if err != nil {
 		return err
 	}
-	if newItem == nil {
+
+	_, err = os.Stat(path)
+	newItem := os.IsNotExist(err)
+
+	if !newItem {
 		opts.CachedChart = path
 		h.Logger.V(1).Info("using cached chart artifact", "chart", ref.String(), "path", path)
 	}
@@ -628,11 +618,11 @@ func (h *Helm) buildFromHelmRepository(ctx context.Context, obj *sourcev1.HelmCh
 		return err
 	}
 
-	err = h.cache.SetUnlock(newItem)
+	err = h.cache.SetUnlock(chartCacheKey)
 	if err != nil {
 		return err
 	}
-	if newItem != nil {
+	if newItem {
 		h.Logger.V(1).Info("cached new chart", "chart", ref.String(), "path", path)
 	}
 

@@ -7,7 +7,7 @@ import (
 
 	"github.com/alitto/pond"
 	"github.com/doodlescheduling/flux-build/internal/build"
-	"github.com/doodlescheduling/flux-build/internal/cachemgr"
+	chartcache "github.com/doodlescheduling/flux-build/internal/helm/chart/cache"
 	helmv1 "github.com/fluxcd/helm-controller/api/v2beta1"
 	"github.com/go-logr/logr"
 	"helm.sh/helm/v3/pkg/chartutil"
@@ -19,7 +19,7 @@ type Action struct {
 	AllowFailure     bool
 	FailFast         bool
 	Workers          int
-	Cache            *cachemgr.Cache
+	Cache            chartcache.Interface
 	Paths            []string
 	APIVersions      []string
 	IncludeHelmHooks bool
