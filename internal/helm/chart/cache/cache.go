@@ -57,6 +57,11 @@ func New(cacheType, cacheDir string) (Interface, error) {
 		}
 		return &InMemory{dir: dir, cache: memcache.New[CacheKey]()}, nil
 	case CacheTypeFS:
+		err := os.MkdirAll(cacheDir, os.ModePerm)
+		if err != nil {
+			return nil, err
+		}
+
 		return &FS{dir: cacheDir}, nil
 	}
 
