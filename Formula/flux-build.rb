@@ -9,8 +9,8 @@ class FluxBuild < Formula
 
   on_macos do
     on_intel do
-      url "https://github.com/DoodleScheduling/flux-build/releases/download/v2.4.0/flux-build_2.4.0_darwin_amd64.tar.gz"
-      sha256 "99c837101d28adcf78749df8c03e9bc99e48e57c4d444eec5afa26345cd6f571"
+      url "https://github.com/DoodleScheduling/flux-build/archive/refs/tags/v3.0.0.tar.gz"
+      sha256 "92ad4a55d36581fb1b909d1ddcb9e91a812b8455d52e8a4f249526e14eee2e80"
 
       def install
         bin.install "flux-build"
