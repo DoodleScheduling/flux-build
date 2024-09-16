@@ -7,7 +7,7 @@ toolchain go1.22.7
 require (
 	github.com/Masterminds/semver/v3 v3.3.0
 	github.com/alitto/pond v1.9.2
-	github.com/cyphar/filepath-securejoin v0.3.1
+	github.com/cyphar/filepath-securejoin v0.3.2
 	github.com/docker/cli v27.2.1+incompatible
 	github.com/drone/envsubst v1.0.3
 	github.com/fluxcd/helm-controller/api v1.0.1
