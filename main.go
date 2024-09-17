@@ -10,7 +10,7 @@ import (
 	"strings"
 
 	"github.com/doodlescheduling/flux-build/internal/action"
-	"github.com/doodlescheduling/flux-build/internal/cachemgr"
+	chartcache "github.com/doodlescheduling/flux-build/internal/helm/chart/cache"
 	"github.com/go-logr/logr"
 	"github.com/go-logr/zapr"
 	"github.com/sethvargo/go-envconfig"
@@ -108,7 +108,7 @@ func main() {
 		kubeVersion = v
 	}
 
-	cache, err := cachemgr.New(config.Cache, config.CacheDir)
+	cache, err := chartcache.New(config.Cache, config.CacheDir)
 	if err != nil {
 		must(err)
 	}
