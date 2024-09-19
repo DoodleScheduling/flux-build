@@ -20,12 +20,10 @@ import (
 	"github.com/doodlescheduling/flux-build/internal/helm/repository"
 	soci "github.com/doodlescheduling/flux-build/internal/oci"
 	"github.com/drone/envsubst"
-	helmv1 "github.com/fluxcd/helm-controller/api/v2beta1"
+	helmv2beta1 "github.com/fluxcd/helm-controller/api/v2beta1"
 	"github.com/fluxcd/pkg/oci"
 	"github.com/fluxcd/pkg/oci/auth/login"
 	"github.com/fluxcd/pkg/runtime/transform"
-	sourcev1beta1 "github.com/fluxcd/source-controller/api/v1beta1"
-	ociv1 "github.com/fluxcd/source-controller/api/v1beta2"
 	sourcev1beta2 "github.com/fluxcd/source-controller/api/v1beta2"
 	"github.com/go-logr/logr"
 	"github.com/google/go-containerregistry/pkg/authn"
@@ -84,9 +82,8 @@ func NewHelmBuilder(logger logr.Logger, opts HelmOpts) *Helm {
 
 	if opts.Decoder == nil {
 		scheme := runtime.NewScheme()
-		_ = helmv1.AddToScheme(scheme)
+		_ = helmv2beta1.AddToScheme(scheme)
 		_ = sourcev1beta2.AddToScheme(scheme)
-		_ = sourcev1beta1.AddToScheme(scheme)
 		_ = corev1.AddToScheme(scheme)
 
 		codecFactory := serializer.NewCodecFactory(scheme)
@@ -105,9 +102,9 @@ func NewHelmBuilder(logger logr.Logger, opts HelmOpts) *Helm {
 func (h *Helm) Build(ctx context.Context, r *resource.Resource, db map[ref]*resource.Resource) (resmap.ResMap, error) {
 	r = r.DeepCopy()
 	r.SetGvk(resid.Gvk{
-		Group:   helmv1.GroupVersion.Group,
-		Version: helmv1.GroupVersion.Version,
-		Kind:    helmv1.HelmReleaseKind,
+		Group:   helmv2beta1.GroupVersion.Group,
+		Version: helmv2beta1.GroupVersion.Version,
+		Kind:    helmv2beta1.HelmReleaseKind,
 	})
 
 	raw, err := r.AsYAML()
@@ -125,9 +122,9 @@ func (h *Helm) Build(ctx context.Context, r *resource.Resource, db map[ref]*reso
 		return nil, fmt.Errorf("failed decode resource to helmrelease: %w", err)
 	}
 
-	hr, ok := obj.(*helmv1.HelmRelease)
+	hr, ok := obj.(*helmv2beta1.HelmRelease)
 	if !ok {
-		return nil, fmt.Errorf("expected type %T", helmv1.HelmRelease{})
+		return nil, fmt.Errorf("expected type %T", helmv2beta1.HelmRelease{})
 	}
 
 	namespace := hr.Spec.Chart.Spec.SourceRef.Namespace
@@ -194,9 +191,9 @@ func (h *Helm) Build(ctx context.Context, r *resource.Resource, db map[ref]*reso
 func (h *Helm) getRepository(repository *resource.Resource) (runtime.Object, error) {
 	copy := repository.DeepCopy()
 	copy.SetGvk(resid.Gvk{
-		Group:   sourcev1.GroupVersion.Group,
-		Version: sourcev1.GroupVersion.Version,
-		Kind:    sourcev1.HelmRepositoryKind,
+		Group:   sourcev1beta2.GroupVersion.Group,
+		Version: sourcev1beta2.GroupVersion.Version,
+		Kind:    sourcev1beta2.HelmRepositoryKind,
 	})
 
 	b, err := copy.AsYAML()
@@ -213,7 +210,7 @@ func (h *Helm) getRepository(repository *resource.Resource) (runtime.Object, err
 	return r, nil
 }
 
-func (h *Helm) buildChart(ctx context.Context, repository runtime.Object, release helmv1.HelmRelease, b *chart.Build, db map[ref]*resource.Resource) error {
+func (h *Helm) buildChart(ctx context.Context, repository runtime.Object, release helmv2beta1.HelmRelease, b *chart.Build, db map[ref]*resource.Resource) error {
 	chart := &sourcev1beta2.HelmChart{
 		Spec: sourcev1beta2.HelmChartSpec{
 			Chart:   release.Spec.Chart.Spec.Chart,
@@ -238,7 +235,7 @@ func (h *Helm) buildChart(ctx context.Context, repository runtime.Object, releas
 	return fmt.Errorf("unsupported chart repository `%T`", repository)
 }
 
-func (h *Helm) renderRelease(ctx context.Context, hr helmv1.HelmRelease, values chartutil.Values, b *chart.Build) (*release.Release, error) {
+func (h *Helm) renderRelease(ctx context.Context, hr helmv2beta1.HelmRelease, values chartutil.Values, b *chart.Build) (*release.Release, error) {
 	chart, err := loader.Load(b.Path)
 	if err != nil {
 		return nil, err
@@ -256,7 +253,7 @@ func (h *Helm) renderRelease(ctx context.Context, hr helmv1.HelmRelease, values 
 	client.DryRun = true
 
 	client.IncludeCRDs = true
-	if hr.Spec.Install != nil && (hr.Spec.Install.SkipCRDs || hr.Spec.Install.CRDs == helmv1.Skip) {
+	if hr.Spec.Install != nil && (hr.Spec.Install.SkipCRDs || hr.Spec.Install.CRDs == helmv2beta1.Skip) {
 		client.IncludeCRDs = false
 	}
 
@@ -275,9 +272,9 @@ func (h *Helm) renderRelease(ctx context.Context, hr helmv1.HelmRelease, values 
 	client.PostRenderer = postrenderer.BuildPostRenderers(&hr)
 
 	// If user opted-in to install (or replace) CRDs, install them first.
-	var legacyCRDsPolicy = helmv1.Create
+	var legacyCRDsPolicy = helmv2beta1.Create
 	if hr.Spec.GetInstall().SkipCRDs {
-		legacyCRDsPolicy = helmv1.Skip
+		legacyCRDsPolicy = helmv2beta1.Skip
 	}
 
 	_, err = h.validateCRDsPolicy(hr.Spec.GetInstall().CRDs, legacyCRDsPolicy)
@@ -288,19 +285,19 @@ func (h *Helm) renderRelease(ctx context.Context, hr helmv1.HelmRelease, values 
 	return client.RunWithContext(ctx, chart, values)
 }
 
-func (h *Helm) validateCRDsPolicy(policy helmv1.CRDsPolicy, defaultValue helmv1.CRDsPolicy) (helmv1.CRDsPolicy, error) {
+func (h *Helm) validateCRDsPolicy(policy helmv2beta1.CRDsPolicy, defaultValue helmv2beta1.CRDsPolicy) (helmv2beta1.CRDsPolicy, error) {
 	switch policy {
 	case "":
 		return defaultValue, nil
-	case helmv1.Skip:
+	case helmv2beta1.Skip:
 		break
-	case helmv1.Create:
+	case helmv2beta1.Create:
 		break
-	case helmv1.CreateReplace:
+	case helmv2beta1.CreateReplace:
 		break
 	default:
 		return policy, fmt.Errorf("invalid CRD policy '%s' defined in field CRDsPolicy, valid values are '%s', '%s' or '%s'",
-			policy, helmv1.Skip, helmv1.Create, helmv1.CreateReplace,
+			policy, helmv2beta1.Skip, helmv2beta1.Create, helmv2beta1.CreateReplace,
 		)
 	}
 	return policy, nil
@@ -309,7 +306,7 @@ func (h *Helm) validateCRDsPolicy(policy helmv1.CRDsPolicy, defaultValue helmv1.
 // composeValues attempts to resolve all v2beta1.ValuesReference resources
 // and merges them as defined. Referenced resources are only retrieved once
 // to ensure a single version is taken into account during the merge.
-func (h *Helm) composeValues(_ context.Context, db map[ref]*resource.Resource, hr helmv1.HelmRelease) (chartutil.Values, error) {
+func (h *Helm) composeValues(_ context.Context, db map[ref]*resource.Resource, hr helmv2beta1.HelmRelease) (chartutil.Values, error) {
 	result := chartutil.Values{}
 
 	for _, v := range hr.Spec.ValuesFrom {
@@ -400,7 +397,7 @@ func (h *Helm) composeValues(_ context.Context, db map[ref]*resource.Resource, h
 	return transform.MergeMaps(result, hr.GetValues()), nil
 }
 
-func (h *Helm) getHelmRepositorySecret(ctx context.Context, repository *sourcev1beta2.HelmRepository, db map[ref]*resource.Resource) (*corev1.Secret, error) {
+func (h *Helm) getHelmRepositorySecret(repository *sourcev1beta2.HelmRepository, db map[ref]*resource.Resource) (*corev1.Secret, error) {
 	if repository.Spec.SecretRef == nil {
 		return nil, nil
 	}
@@ -484,7 +481,7 @@ func (h *Helm) buildFromHelmRepository(ctx context.Context, obj *sourcev1beta2.H
 			helmgetter.WithPassCredentialsAll(repo.Spec.PassCredentials),
 		}
 
-		if secret, err := h.getHelmRepositorySecret(ctx, repo, db); secret != nil || err != nil {
+		if secret, err := h.getHelmRepositorySecret(repo, db); secret != nil || err != nil {
 			if err != nil {
 				return err
 			}
@@ -637,7 +634,7 @@ func (h *Helm) buildFromHelmRepository(ctx context.Context, obj *sourcev1beta2.H
 
 // oidcAuth generates the OIDC credential authenticator based on the specified cloud provider.
 func oidcAuth(ctx context.Context, url, provider string) (authn.Authenticator, error) {
-	u := strings.TrimPrefix(url, ociv1.OCIRepositoryPrefix)
+	u := strings.TrimPrefix(url, sourcev1beta2.OCIRepositoryPrefix)
 	ref, err := name.ParseReference(u)
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse URL '%s': %w", u, err)
@@ -645,11 +642,11 @@ func oidcAuth(ctx context.Context, url, provider string) (authn.Authenticator, e
 
 	opts := login.ProviderOptions{}
 	switch provider {
-	case ociv1.AmazonOCIProvider:
+	case sourcev1beta2.AmazonOCIProvider:
 		opts.AwsAutoLogin = true
-	case ociv1.AzureOCIProvider:
+	case sourcev1beta2.AzureOCIProvider:
 		opts.AzureAutoLogin = true
-	case ociv1.GoogleOCIProvider:
+	case sourcev1beta2.GoogleOCIProvider:
 		opts.GcpAutoLogin = true
 	}
 
