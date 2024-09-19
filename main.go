@@ -5,7 +5,6 @@ import (
 	"errors"
 	"log"
 	"os"
-	"path/filepath"
 	"runtime"
 	"strings"
 
@@ -40,27 +39,18 @@ var (
 	config = &Config{}
 )
 
-func getDefaultCacheDir() string {
-	homeDir, err := os.UserHomeDir()
-	if err != nil {
-		return filepath.Join(os.TempDir(), "flux-build")
-	}
-
-	return filepath.Join(homeDir, ".cache", "flux-build")
-}
-
 func init() {
 	flag.StringVarP(&config.Log.Level, "log-level", "l", "", "Define the log level (default is warning) [debug,info,warn,error]")
 	flag.StringVarP(&config.Log.Encoding, "log-encoding", "e", "", "Define the log format (default is json) [json,console]")
 	flag.StringVarP(&config.Output, "output", "o", "", "Path to output")
-	flag.BoolVar(&config.AllowFailure, "allow-failure", false, "Do not exit > 0 if an error occurred")
+	flag.BoolVar(&config.AllowFailure, "allow-failure", false, "Do not exit > 0 if an error occured")
 	flag.BoolVar(&config.IncludeHelmHooks, "include-helm-hooks", false, "Include helm hooks in the output")
-	flag.BoolVar(&config.FailFast, "fail-fast", false, "Exit early if an error occurred")
-	flag.IntVar(&config.Workers, "workers", runtime.NumCPU(), "Workers used to parse manifests")
+	flag.BoolVar(&config.FailFast, "fail-fast", false, "Exit early if an error occured")
+	flag.IntVar(&config.Workers, "workers", 0, "Workers used to parse manifests")
 	flag.StringVarP(&config.KubeVersion, "kube-version", "", "", "Kubernetes version (Some helm charts validate manifests against a specific kubernetes version)")
 	flag.StringSliceVarP(&config.APIVersions, "api-versions", "", nil, "Kubernetes api versions used for Capabilities.APIVersions (Comma separated)")
 	flag.StringVar(&config.Cache, "cache", "inmemory", "Which Helm cache to use, one of none, inmemory, fs")
-	flag.StringVar(&config.CacheDir, "cache-dir", getDefaultCacheDir(), "Path to helm chart cache (only used in combination with cache=fs)")
+	flag.StringVar(&config.CacheDir, "cache-dir", "~/.cache/flux-build", "Dir for Helm charts file cache")
 }
 
 func must(err error) {
@@ -77,7 +67,7 @@ func main() {
 
 	flag.Parse()
 
-	if config.Workers < 1 {
+	if config.Workers == 0 {
 		config.Workers = runtime.NumCPU()
 	}
 
@@ -86,8 +76,8 @@ func main() {
 
 	kubeVersion := &chartutil.KubeVersion{
 		Major:   "1",
-		Minor:   "31",
-		Version: "1.31.0",
+		Minor:   "27",
+		Version: "1.27.0",
 	}
 
 	paths := flag.Args()

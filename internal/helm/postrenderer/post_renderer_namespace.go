@@ -4,12 +4,12 @@ import (
 	"bytes"
 	"encoding/json"
 
-	helmv2 "github.com/fluxcd/helm-controller/api/v2"
+	helmv1 "github.com/fluxcd/helm-controller/api/v2beta1"
 	kustypes "sigs.k8s.io/kustomize/api/types"
 	"sigs.k8s.io/kustomize/kyaml/filesys"
 )
 
-func NewPostRendererNamespace(release *helmv2.HelmRelease) *postRendererNamespace {
+func NewPostRendererNamespace(release *helmv1.HelmRelease) *postRendererNamespace {
 	ns := release.GetReleaseNamespace()
 	if ns == "" {
 		ns = "default"

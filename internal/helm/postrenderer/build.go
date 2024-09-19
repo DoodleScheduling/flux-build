@@ -22,12 +22,12 @@ import (
 	"github.com/opencontainers/go-digest"
 	helmpostrender "helm.sh/helm/v3/pkg/postrender"
 
-	helmv2 "github.com/fluxcd/helm-controller/api/v2"
+	helmv1 "github.com/fluxcd/helm-controller/api/v2beta1"
 )
 
 // BuildPostRenderers creates the post-renderer instances from a HelmRelease
 // and combines them into a single Combined post renderer.
-func BuildPostRenderers(rel *helmv2.HelmRelease) helmpostrender.PostRenderer {
+func BuildPostRenderers(rel *helmv1.HelmRelease) helmpostrender.PostRenderer {
 	if rel == nil {
 		return nil
 	}
@@ -42,14 +42,14 @@ func BuildPostRenderers(rel *helmv2.HelmRelease) helmpostrender.PostRenderer {
 			})
 		}
 	}
-	renderers = append(renderers, NewOriginLabels(helmv2.GroupVersion.Group, rel.Namespace, rel.Name))
+	renderers = append(renderers, NewOriginLabels(helmv1.GroupVersion.Group, rel.Namespace, rel.Name))
 	if len(renderers) == 0 {
 		return nil
 	}
 	return NewCombined(renderers...)
 }
 
-func Digest(algo digest.Algorithm, postrenders []helmv2.PostRenderer) digest.Digest {
+func Digest(algo digest.Algorithm, postrenders []helmv1.PostRenderer) digest.Digest {
 	digester := algo.Digester()
 	enc := json.NewEncoder(digester.Hash())
 	if err := enc.Encode(postrenders); err != nil {
