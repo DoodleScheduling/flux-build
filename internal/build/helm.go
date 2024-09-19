@@ -101,6 +101,7 @@ func NewHelmBuilder(logger logr.Logger, opts HelmOpts) *Helm {
 }
 
 func (h *Helm) Build(ctx context.Context, r *resource.Resource, db map[ref]*resource.Resource) (resmap.ResMap, error) {
+	r = r.DeepCopy()
 	r.SetGvk(resid.Gvk{
 		Group:   helmv2.GroupVersion.Group,
 		Version: helmv2.GroupVersion.Version,
