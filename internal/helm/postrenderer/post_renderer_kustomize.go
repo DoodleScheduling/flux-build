@@ -21,61 +21,24 @@ import (
 	"encoding/json"
 	"sync"
 
+	"sigs.k8s.io/kustomize/api/filesys"
 	"sigs.k8s.io/kustomize/api/krusty"
 	"sigs.k8s.io/kustomize/api/resmap"
 	kustypes "sigs.k8s.io/kustomize/api/types"
-	"sigs.k8s.io/kustomize/kyaml/filesys"
 
 	"github.com/fluxcd/pkg/apis/kustomize"
+
+	v2 "github.com/fluxcd/helm-controller/api/v2beta1"
 )
 
-// Kustomize is a Helm post-render plugin that runs Kustomize.
-type Kustomize struct {
-	// Patches is a list of patches to apply to the rendered manifests.
-	Patches []kustomize.Patch
-	// Images is a list of images to replace in the rendered manifests.
-	Images []kustomize.Image
+type postRendererKustomize struct {
+	spec *v2.Kustomize
 }
 
-func (k *Kustomize) Run(renderedManifests *bytes.Buffer) (modifiedManifests *bytes.Buffer, err error) {
-	fs := filesys.MakeFsInMemory()
-	cfg := kustypes.Kustomization{}
-	cfg.APIVersion = kustypes.KustomizationVersion
-	cfg.Kind = kustypes.KustomizationKind
-	cfg.Images = adaptImages(k.Images)
-
-	// Add rendered Helm output as input resource to the Kustomization.
-	const input = "helm-output.yaml"
-	cfg.Resources = append(cfg.Resources, input)
-	if err := writeFile(fs, input, renderedManifests); err != nil {
-		return nil, err
+func NewPostRendererKustomize(spec *v2.Kustomize) *postRendererKustomize {
+	return &postRendererKustomize{
+		spec: spec,
 	}
-
-	// Add patches.
-	for _, m := range k.Patches {
-		cfg.Patches = append(cfg.Patches, kustypes.Patch{
-			Patch:  m.Patch,
-			Target: adaptSelector(m.Target),
-		})
-	}
-
-	// Write kustomization config to file.
-	kustomization, err := json.Marshal(cfg)
-	if err != nil {
-		return nil, err
-	}
-	if err := writeToFile(fs, "kustomization.yaml", kustomization); err != nil {
-		return nil, err
-	}
-	resMap, err := buildKustomization(fs, ".")
-	if err != nil {
-		return nil, err
-	}
-	yaml, err := resMap.AsYaml()
-	if err != nil {
-		return nil, err
-	}
-	return bytes.NewBuffer(yaml), nil
 }
 
 func writeToFile(fs filesys.FileSystem, path string, content []byte) error {
@@ -83,10 +46,12 @@ func writeToFile(fs filesys.FileSystem, path string, content []byte) error {
 	if err != nil {
 		return err
 	}
-	if _, err = helmOutput.Write(content); err != nil {
+	_, err = helmOutput.Write(content)
+	if err != nil {
 		return err
 	}
-	if err = helmOutput.Close(); err != nil {
+
+	if err := helmOutput.Close(); err != nil {
 		return err
 	}
 	return nil
@@ -97,10 +62,12 @@ func writeFile(fs filesys.FileSystem, path string, content *bytes.Buffer) error 
 	if err != nil {
 		return err
 	}
-	if _, err = content.WriteTo(helmOutput); err != nil {
+	_, err = content.WriteTo(helmOutput)
+	if err != nil {
 		return err
 	}
-	if err = helmOutput.Close(); err != nil {
+
+	if err := helmOutput.Close(); err != nil {
 		return err
 	}
 	return nil
@@ -132,10 +99,69 @@ func adaptSelector(selector *kustomize.Selector) (output *kustypes.Selector) {
 	return
 }
 
+func (k *postRendererKustomize) Run(renderedManifests *bytes.Buffer) (modifiedManifests *bytes.Buffer, err error) {
+	fs := filesys.MakeFsInMemory()
+	cfg := kustypes.Kustomization{}
+	cfg.APIVersion = kustypes.KustomizationVersion
+	cfg.Kind = kustypes.KustomizationKind
+	cfg.Images = adaptImages(k.spec.Images)
+
+	// Add rendered Helm output as input resource to the Kustomization.
+	const input = "helm-output.yaml"
+	cfg.Resources = append(cfg.Resources, input)
+	if err := writeFile(fs, input, renderedManifests); err != nil {
+		return nil, err
+	}
+
+	// Add patches.
+	for _, m := range k.spec.Patches {
+		cfg.Patches = append(cfg.Patches, kustypes.Patch{
+			Patch:  m.Patch,
+			Target: adaptSelector(m.Target),
+		})
+	}
+
+	// Add strategic merge patches.
+	for _, m := range k.spec.PatchesStrategicMerge {
+		cfg.PatchesStrategicMerge = append(cfg.PatchesStrategicMerge, kustypes.PatchStrategicMerge(m.Raw))
+	}
+
+	// Add JSON 6902 patches.
+	for _, m := range k.spec.PatchesJSON6902 {
+		patch, err := json.Marshal(m.Patch)
+		if err != nil {
+			return nil, err
+		}
+		cfg.PatchesJson6902 = append(cfg.PatchesJson6902, kustypes.Patch{
+			Patch:  string(patch),
+			Target: adaptSelector(&m.Target),
+		})
+	}
+
+	// Write kustomization config to file.
+	kustomization, err := json.Marshal(cfg)
+	if err != nil {
+		return nil, err
+	}
+	if err := writeToFile(fs, "kustomization.yaml", kustomization); err != nil {
+		return nil, err
+	}
+	resMap, err := buildKustomization(fs, ".")
+	if err != nil {
+		return nil, err
+	}
+	yaml, err := resMap.AsYaml()
+	if err != nil {
+		return nil, err
+	}
+	return bytes.NewBuffer(yaml), nil
+}
+
 // TODO: remove mutex when kustomize fixes the concurrent map read/write panic
 var kustomizeRenderMutex sync.Mutex
 
 // buildKustomization wraps krusty.MakeKustomizer with the following settings:
+// - reorder the resources just before output (Namespaces and Cluster roles/role bindings first, CRDs before CRs, Webhooks last)
 // - load files from outside the kustomization.yaml root
 // - disable plugins except for the builtin ones
 func buildKustomization(fs filesys.FileSystem, dirPath string) (resmap.ResMap, error) {

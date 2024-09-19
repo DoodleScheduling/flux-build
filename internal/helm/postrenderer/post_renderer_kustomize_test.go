@@ -18,14 +18,16 @@ package postrenderer
 
 import (
 	"bytes"
+	"encoding/json"
+	"reflect"
 	"testing"
 
-	. "github.com/onsi/gomega"
+	v1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	"sigs.k8s.io/yaml"
 
 	"github.com/fluxcd/pkg/apis/kustomize"
 
-	helmv1 "github.com/fluxcd/helm-controller/api/v2beta1"
+	v2 "github.com/fluxcd/helm-controller/api/v2beta1"
 )
 
 const replaceImageMock = `apiVersion: v1
@@ -59,12 +61,14 @@ spec:
 
 func Test_postRendererKustomize_Run(t *testing.T) {
 	tests := []struct {
-		name              string
-		renderedManifests string
-		patches           string
-		images            string
-		expectManifests   string
-		expectErr         bool
+		name                  string
+		renderedManifests     string
+		patches               string
+		patchesStrategicMerge string
+		patchesJson6902       string
+		images                string
+		expectManifests       string
+		expectErr             bool
 	}{
 		{
 			name:              "image tag",
@@ -117,12 +121,12 @@ spec:
 		{
 			name:              "json 6902",
 			renderedManifests: json6902Mock,
-			patches: `
+			patchesJson6902: `
 - target:
     version: v1
     kind: Pod
     name: json6902
-  patch: |
+  patch:
     - op: test
       path: /metadata/annotations/c
       value: foo
@@ -187,6 +191,33 @@ metadata:
 `,
 		},
 		{
+			name:              "strategic merge test",
+			renderedManifests: strategicMergeMock,
+			patchesStrategicMerge: `
+- apiVersion: apps/v1
+  kind: Deployment
+  metadata:
+    name: nginx
+  spec:
+    template:
+      spec:
+        containers:
+          - name: nginx
+            image: nignx:latest
+`,
+			expectManifests: `apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: nginx
+spec:
+  template:
+    spec:
+      containers:
+      - image: nignx:latest
+        name: nginx
+`,
+		},
+		{
 			name:              "targeted strategic merge test",
 			renderedManifests: strategicMergeMock,
 			patches: `
@@ -222,39 +253,51 @@ spec:
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			g := NewWithT(t)
-
-			spec, err := mockKustomize(tt.patches, tt.images)
-			g.Expect(err).ToNot(HaveOccurred())
-
-			k := &Kustomize{
-				Patches: spec.Patches,
-				Images:  spec.Images,
-			}
-			gotModifiedManifests, err := k.Run(bytes.NewBufferString(tt.renderedManifests))
-			if tt.expectErr {
-				g.Expect(err).ToNot(HaveOccurred())
-				g.Expect(gotModifiedManifests.String()).To(BeEmpty())
+			spec, err := mockKustomize(tt.patches, tt.patchesStrategicMerge, tt.patchesJson6902, tt.images)
+			if err != nil {
+				t.Errorf("Run() mockKustomize returned %v", err)
 				return
 			}
-
-			g.Expect(err).ToNot(HaveOccurred())
-			g.Expect(gotModifiedManifests).To(Equal(bytes.NewBufferString(tt.expectManifests)))
+			k := &postRendererKustomize{
+				spec: spec,
+			}
+			gotModifiedManifests, err := k.Run(bytes.NewBufferString(tt.renderedManifests))
+			if (err != nil) != tt.expectErr {
+				t.Errorf("Run() error = %v, expectErr %v", err, tt.expectErr)
+				return
+			}
+			if !reflect.DeepEqual(gotModifiedManifests, bytes.NewBufferString(tt.expectManifests)) {
+				t.Errorf("Run() gotModifiedManifests = %v, want %v", gotModifiedManifests, tt.expectManifests)
+			}
 		})
 	}
 }
 
-func mockKustomize(patches, images string) (*helmv1.Kustomize, error) {
+func mockKustomize(patches, patchesStrategicMerge, patchesJson6902, images string) (*v2.Kustomize, error) {
 	var targeted []kustomize.Patch
 	if err := yaml.Unmarshal([]byte(patches), &targeted); err != nil {
+		return nil, err
+	}
+	b, err := yaml.YAMLToJSON([]byte(patchesStrategicMerge))
+	if err != nil {
+		return nil, err
+	}
+	var strategicMerge []v1.JSON
+	if err := json.Unmarshal(b, &strategicMerge); err != nil {
+		return nil, err
+	}
+	var json6902 []kustomize.JSON6902Patch
+	if err := yaml.Unmarshal([]byte(patchesJson6902), &json6902); err != nil {
 		return nil, err
 	}
 	var imgs []kustomize.Image
 	if err := yaml.Unmarshal([]byte(images), &imgs); err != nil {
 		return nil, err
 	}
-	return &helmv1.Kustomize{
-		Patches: targeted,
-		Images:  imgs,
+	return &v2.Kustomize{
+		Patches:               targeted,
+		PatchesStrategicMerge: strategicMerge,
+		PatchesJSON6902:       json6902,
+		Images:                imgs,
 	}, nil
 }
