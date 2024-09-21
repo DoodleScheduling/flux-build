@@ -8,7 +8,7 @@ require (
 	github.com/Masterminds/semver/v3 v3.3.0
 	github.com/alitto/pond v1.9.2
 	github.com/cyphar/filepath-securejoin v0.3.2
-	github.com/docker/cli v27.2.1+incompatible
+	github.com/docker/cli v27.3.0+incompatible
 	github.com/drone/envsubst v1.0.3
 	github.com/fluxcd/helm-controller/api v1.0.1
 	github.com/fluxcd/pkg/apis/kustomize v1.6.1
@@ -31,6 +31,7 @@ require (
 	golang.org/x/sync v0.8.0
 	helm.sh/helm/v3 v3.16.1
 	k8s.io/api v0.31.1
+	k8s.io/apiextensions-apiserver v0.31.1
 	k8s.io/apimachinery v0.31.1
 	k8s.io/helm v2.17.0+incompatible
 	sigs.k8s.io/kustomize/api v0.17.3
@@ -293,7 +294,6 @@ require (
 	gopkg.in/ini.v1 v1.67.0 // indirect
 	gopkg.in/yaml.v2 v2.4.0 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
-	k8s.io/apiextensions-apiserver v0.31.1 // indirect
 	k8s.io/apiserver v0.31.1 // indirect
 	k8s.io/cli-runtime v0.31.1 // indirect
 	k8s.io/client-go v0.31.1 // indirect
