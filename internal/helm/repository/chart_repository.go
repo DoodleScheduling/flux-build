@@ -180,6 +180,9 @@ func (r *ChartRepository) getChartVersion(name, ver string) (*repo.ChartVersion,
 	defer r.RUnlock()
 
 	if r.Index == nil {
+
+		panic(r)
+
 		return nil, ErrNoChartIndex
 	}
 	cvs, ok := r.Index.Entries[name]
