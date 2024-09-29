@@ -15,7 +15,7 @@ require (
 	github.com/fluxcd/pkg/oci v0.41.1
 	github.com/fluxcd/pkg/runtime v0.49.1
 	github.com/fluxcd/pkg/version v0.4.1
-	github.com/fluxcd/source-controller/api v1.4.0
+	github.com/fluxcd/source-controller/api v1.4.1
 	github.com/go-logr/logr v1.4.2
 	github.com/go-logr/zapr v1.3.0
 	github.com/gofrs/flock v0.12.1
