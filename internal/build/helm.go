@@ -495,7 +495,7 @@ func (h *Helm) buildFromHelmRepository(ctx context.Context, obj *sourcev1beta2.H
 		chartRepo = r.(repository.Downloader)
 	}
 
-	defer h.repoCache.SetUnlock(repoCacheKey, nil)
+	defer h.repoCache.SetUnlock(repoCacheKey, chartRepo)
 
 	if chartRepo == nil {
 		h.Logger.V(1).Info("using chart repo", "chartrepo", normalizedURL)
@@ -605,8 +605,6 @@ func (h *Helm) buildFromHelmRepository(ctx context.Context, obj *sourcev1beta2.H
 
 			chartRepo = httpChartRepo
 		}
-
-		h.repoCache.SetUnlock(repoCacheKey, chartRepo)
 	}
 
 	// Construct the chart builder with scoped configuration
