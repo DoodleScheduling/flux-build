@@ -491,7 +491,7 @@ func (h *Helm) buildFromHelmRepository(ctx context.Context, obj *sourcev1beta2.H
 	var chartRepo repository.Downloader
 	repoCacheKey := CacheKey{Repo: normalizedURL}
 	r, ok := h.repoCache.GetOrLock(repoCacheKey)
-	if ok {
+	if ok && r != nil {
 		chartRepo = r.(repository.Downloader)
 	}
 
