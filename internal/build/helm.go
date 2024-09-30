@@ -626,7 +626,9 @@ func (h *Helm) buildFromHelmRepository(ctx context.Context, obj *sourcev1beta2.H
 		return err
 	}
 
-	defer h.cache.SetUnlock(chartCacheKey)
+	defer func() {
+		_ = h.cache.SetUnlock(chartCacheKey)
+	}()
 
 	_, err = os.Stat(path)
 	newItem := os.IsNotExist(err)
