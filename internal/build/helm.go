@@ -495,6 +495,8 @@ func (h *Helm) buildFromHelmRepository(ctx context.Context, obj *sourcev1beta2.H
 		chartRepo = r.(repository.Downloader)
 	}
 
+	defer h.repoCache.SetUnlock(repoCacheKey, nil)
+
 	if chartRepo == nil {
 		h.Logger.V(1).Info("using chart repo", "chartrepo", normalizedURL)
 
@@ -624,6 +626,10 @@ func (h *Helm) buildFromHelmRepository(ctx context.Context, obj *sourcev1beta2.H
 		return err
 	}
 
+	defer func() {
+		_ = h.cache.SetUnlock(chartCacheKey)
+	}()
+
 	_, err = os.Stat(path)
 	newItem := os.IsNotExist(err)
 
@@ -644,10 +650,6 @@ func (h *Helm) buildFromHelmRepository(ctx context.Context, obj *sourcev1beta2.H
 		return err
 	}
 
-	err = h.cache.SetUnlock(chartCacheKey)
-	if err != nil {
-		return err
-	}
 	if newItem {
 		h.Logger.V(1).Info("cached new chart", "chart", ref.String(), "path", path)
 	}

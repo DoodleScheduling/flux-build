@@ -1,15 +1,3 @@
-// Copyright (c) 2012-2019 Patrick Mylund Nielsen and the go-cache contributors
-// Use of this source code is governed by a MIT-style
-// license that can be found in the LICENSE file.
-
-// Copyright 2022 The FluxCD contributors. All rights reserved.
-// This package provides an in-memory cache
-// derived from the https://github.com/patrickmn/go-cache
-// package
-// It has been modified in order to keep a small set of functions
-// and to add a maxItems parameter in order to limit the number of,
-// and thus the size of, items in the cache.
-
 package cache
 
 import (
@@ -45,7 +33,7 @@ func (c *Cache[K]) Add(key K, value any) error {
 	defer c.mu.Unlock()
 	_, found := c.items[key]
 	if found {
-		return fmt.Errorf("Item %v already exists", key)
+		return fmt.Errorf("item %v already exists", key)
 	}
 	c.items[key] = value
 	return nil
@@ -65,7 +53,7 @@ func (c *Cache[K]) Get(key K) (any, bool) {
 
 type valueLock chan struct{}
 
-// GetOrLock returns an item from the cache or creats lock for the first requestor of specific key
+// GetOrLock returns an item from the cache or creates a lock for the first requestor of a specific key
 // and locks others until the item will be set.
 func (c *Cache[K]) GetOrLock(key K) (any, bool) {
 	c.mu.Lock()
