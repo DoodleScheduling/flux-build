@@ -2,8 +2,10 @@ package action
 
 import (
 	"context"
+	"fmt"
 	"io"
 	"os"
+	"runtime/debug"
 
 	"github.com/alitto/pond"
 	"github.com/doodlescheduling/flux-build/internal/build"
@@ -32,14 +34,19 @@ func (a *Action) Run(ctx context.Context) error {
 	defer cancel()
 
 	errs := make(chan error)
+	panicHandler := func(panic interface{}) {
+		errs <- fmt.Errorf("worker exits from a panic: %v\nStack trace: %s\n", panic, string(debug.Stack()))
+	}
+
 	var lastErr error
-	helmResultPool := pond.New(1, 1, pond.Context(ctx))
-	kustomizePool := pond.New(len(a.Paths), len(a.Paths), pond.Context(ctx))
-	helmPool := pond.New(a.Workers, a.Workers, pond.Context(ctx))
-	resourcePool := pond.New(1, 1, pond.Context(ctx))
+	helmResultPool := pond.New(1, 1, pond.Context(ctx), pond.PanicHandler(panicHandler))
+	kustomizePool := pond.New(len(a.Paths), len(a.Paths), pond.Context(ctx), pond.PanicHandler(panicHandler))
+	helmPool := pond.New(a.Workers, a.Workers, pond.Context(ctx), pond.PanicHandler(panicHandler))
+	resourcePool := pond.New(1, 1, pond.Context(ctx), pond.PanicHandler(panicHandler))
 
 	defer func() {
 		if lastErr != nil && !a.AllowFailure {
+			fmt.Fprintln(os.Stderr, lastErr.Error())
 			os.Exit(1)
 		}
 	}()
