@@ -34,7 +34,10 @@ func (k *postRendererNamespace) Run(renderedManifests *bytes.Buffer) (modifiedMa
 
 	for _, resource := range resMap.Resources() {
 		if resource.GetNamespace() == "" {
-			resource.SetNamespace(k.namespace)
+			err = resource.SetNamespace(k.namespace)
+			if err != nil {
+				return nil, err
+			}
 		}
 	}
 
