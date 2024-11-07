@@ -2,11 +2,10 @@ package postrenderer
 
 import (
 	"bytes"
-	"encoding/json"
 
 	v2 "github.com/fluxcd/helm-controller/api/v2beta1"
-	"sigs.k8s.io/kustomize/api/filesys"
-	kustypes "sigs.k8s.io/kustomize/api/types"
+	"sigs.k8s.io/kustomize/api/provider"
+	"sigs.k8s.io/kustomize/api/resmap"
 )
 
 func NewPostRendererNamespace(release *v2.HelmRelease) *postRendererNamespace {
@@ -25,35 +24,27 @@ type postRendererNamespace struct {
 }
 
 func (k *postRendererNamespace) Run(renderedManifests *bytes.Buffer) (modifiedManifests *bytes.Buffer, err error) {
-	fs := filesys.MakeFsInMemory()
-	cfg := kustypes.Kustomization{}
-	cfg.APIVersion = kustypes.KustomizationVersion
-	cfg.Kind = kustypes.KustomizationKind
-	cfg.Namespace = k.namespace
+	resFactory := provider.NewDefaultDepProvider().GetResourceFactory()
+	resMapFactory := resmap.NewFactory(resFactory)
 
-	// Add rendered Helm output as input resource to the Kustomization.
-	const input = "helm-output.yaml"
-	cfg.Resources = append(cfg.Resources, input)
-	if err := writeFile(fs, input, renderedManifests); err != nil {
-		return nil, err
-	}
-
-	// Write kustomization config to file.
-	kustomization, err := json.Marshal(cfg)
+	resMap, err := resMapFactory.NewResMapFromBytes(renderedManifests.Bytes())
 	if err != nil {
 		return nil, err
 	}
-	if err := writeToFile(fs, "kustomization.yaml", kustomization); err != nil {
-		return nil, err
+
+	for _, resource := range resMap.Resources() {
+		if resource.GetNamespace() == "" {
+			err = resource.SetNamespace(k.namespace)
+			if err != nil {
+				return nil, err
+			}
+		}
 	}
-	resMap, err := buildKustomization(fs, ".")
-	if err != nil {
-		return nil, err
-	}
+
 	yaml, err := resMap.AsYaml()
 	if err != nil {
 		return nil, err
 	}
-	return bytes.NewBuffer(yaml), nil
 
+	return bytes.NewBuffer(yaml), nil
 }
