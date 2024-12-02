@@ -7,7 +7,7 @@ import (
 	"os"
 	"runtime/debug"
 
-	"github.com/alitto/pond"
+	"github.com/alitto/pond/v2"
 	"github.com/doodlescheduling/flux-build/internal/build"
 	chartcache "github.com/doodlescheduling/flux-build/internal/helm/chart/cache"
 	helmv1 "github.com/fluxcd/helm-controller/api/v2beta1"
