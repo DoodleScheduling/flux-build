@@ -619,7 +619,7 @@ func (h *Helm) buildFromHelmRepository(ctx context.Context, obj *sourcev1beta2.H
 	}
 
 	ref := chart.RemoteReference{Name: obj.Spec.Chart, Version: obj.Spec.Version}
-	path, chartCacheKey, err := h.cache.GetOrLock(normalizedURL, ref)
+	path, chartCacheKey, err := h.cache.GetOrLock(normalizedURL, ref.WithEscapedName())
 	if err != nil {
 		return err
 	}

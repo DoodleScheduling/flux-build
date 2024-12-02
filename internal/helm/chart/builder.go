@@ -19,6 +19,7 @@ package chart
 import (
 	"context"
 	"fmt"
+	"net/url"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -73,6 +74,12 @@ type RemoteReference struct {
 	// Version of the chart.
 	// Can be a Semver range, or empty for latest.
 	Version string
+}
+
+// WithEscapedName returns a new RemoteReference with the Name URL-escaped.
+func (r RemoteReference) WithEscapedName() RemoteReference {
+	r.Name = url.PathEscape(r.Name)
+	return r
 }
 
 // Validate returns an error if the RemoteReference does not have
