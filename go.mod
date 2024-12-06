@@ -1,8 +1,8 @@
 module github.com/doodlescheduling/flux-build
 
-go 1.22.6
+go 1.22.7
 
-toolchain go1.22.7
+toolchain go1.23.4
 
 require (
 	github.com/Masterminds/semver/v3 v3.3.1
@@ -34,8 +34,8 @@ require (
 	k8s.io/apiextensions-apiserver v0.31.3
 	k8s.io/apimachinery v0.31.3
 	k8s.io/helm v2.17.0+incompatible
-	sigs.k8s.io/kustomize/api v0.17.3
-	sigs.k8s.io/kustomize/kyaml v0.17.2
+	sigs.k8s.io/kustomize/api v0.18.0
+	sigs.k8s.io/kustomize/kyaml v0.18.1
 	sigs.k8s.io/yaml v1.4.0
 )
 
@@ -45,7 +45,7 @@ replace github.com/opencontainers/go-digest => github.com/opencontainers/go-dige
 
 // Pin kustomize to v5.4.0
 replace (
-	sigs.k8s.io/kustomize/api => sigs.k8s.io/kustomize/api v0.17.3
+	sigs.k8s.io/kustomize/api => sigs.k8s.io/kustomize/api v0.18.0
 	sigs.k8s.io/kustomize/kyaml => sigs.k8s.io/kustomize/kyaml v0.17.2
 )
 
