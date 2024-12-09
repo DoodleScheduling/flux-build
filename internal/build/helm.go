@@ -488,6 +488,20 @@ func (h *Helm) buildFromHelmRepository(ctx context.Context, obj *sourcev1beta2.H
 		return fmt.Errorf("failed to normalize url: %w", err)
 	}
 
+	// Check if the chart is already in cache first.
+	ref := chart.RemoteReference{Name: obj.Spec.Chart, Version: obj.Spec.Version}
+	path, chartCacheKey, err := h.cache.GetOrLock(normalizedURL, ref.WithEscapedName())
+	if err != nil {
+		return err
+	}
+
+	defer func() {
+		_ = h.cache.SetUnlock(chartCacheKey)
+	}()
+
+	_, err = os.Stat(path)
+	uncachedChart := os.IsNotExist(err)
+
 	var chartRepo repository.Downloader
 	repoCacheKey := CacheKey{Repo: normalizedURL}
 	r, ok := h.repoCache.GetOrLock(repoCacheKey)
@@ -525,7 +539,7 @@ func (h *Helm) buildFromHelmRepository(ctx context.Context, obj *sourcev1beta2.H
 			if err != nil {
 				return fmt.Errorf("failed to configure Helm client with secret data: %w", err)
 			}
-		} else if repo.Spec.Provider != sourcev1beta2.GenericOCIProvider && repo.Spec.Type == sourcev1beta2.HelmRepositoryTypeOCI {
+		} else if repo.Spec.Provider != sourcev1beta2.GenericOCIProvider && repo.Spec.Type == sourcev1beta2.HelmRepositoryTypeOCI && uncachedChart {
 			auth, authErr := oidcAuth(ctxTimeout, repo.Spec.URL, repo.Spec.Provider)
 			if authErr != nil && !errors.Is(authErr, oci.ErrUnconfiguredProvider) {
 				return fmt.Errorf("failed to get credential from %s: %w", repo.Spec.Provider, authErr)
@@ -535,9 +549,12 @@ func (h *Helm) buildFromHelmRepository(ctx context.Context, obj *sourcev1beta2.H
 			}
 		}
 
-		loginOpt, err := makeLoginOption(authenticator, keychain, normalizedURL)
-		if err != nil {
-			return err
+		var loginOpt helmreg.LoginOption
+		if uncachedChart {
+			loginOpt, err = makeLoginOption(authenticator, keychain, normalizedURL)
+			if err != nil {
+				return err
+			}
 		}
 
 		// Initialize the chart repository
@@ -618,20 +635,7 @@ func (h *Helm) buildFromHelmRepository(ctx context.Context, obj *sourcev1beta2.H
 		Verify: obj.Spec.Verify != nil && obj.Spec.Verify.Provider != "",
 	}
 
-	ref := chart.RemoteReference{Name: obj.Spec.Chart, Version: obj.Spec.Version}
-	path, chartCacheKey, err := h.cache.GetOrLock(normalizedURL, ref.WithEscapedName())
-	if err != nil {
-		return err
-	}
-
-	defer func() {
-		_ = h.cache.SetUnlock(chartCacheKey)
-	}()
-
-	_, err = os.Stat(path)
-	newItem := os.IsNotExist(err)
-
-	if !newItem {
+	if !uncachedChart {
 		opts.CachedChart = path
 		h.Logger.V(1).Info("using cached chart artifact", "chart", ref.String(), "path", path)
 	}
@@ -648,7 +652,7 @@ func (h *Helm) buildFromHelmRepository(ctx context.Context, obj *sourcev1beta2.H
 		return err
 	}
 
-	if newItem {
+	if uncachedChart {
 		h.Logger.V(1).Info("cached new chart", "chart", ref.String(), "path", path)
 	}
 
