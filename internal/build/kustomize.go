@@ -23,6 +23,8 @@ var kustomizeBuildMutex sync.Mutex
 func Kustomize(ctx context.Context, path string) (resmap.ResMap, error) {
 	kfile := filepath.Join(path, konfig.DefaultKustomizationFileName())
 	fs := filesys.MakeFsOnDisk()
+	pvd := provider.NewDefaultDepProvider()
+	singleFile := false
 
 	_, err := os.Stat(kfile)
 	if err != nil {
@@ -32,6 +34,7 @@ func Kustomize(ctx context.Context, path string) (resmap.ResMap, error) {
 		}
 
 		if path == "/dev/stdin" || path == "-" {
+			singleFile = true
 			d, err := os.MkdirTemp(os.TempDir(), "")
 			if err != nil {
 				return nil, err
@@ -53,6 +56,7 @@ func Kustomize(ctx context.Context, path string) (resmap.ResMap, error) {
 				_ = os.RemoveAll(d)
 			}()
 		} else if !stat.IsDir() {
+			singleFile = true
 			d, err := os.MkdirTemp(os.TempDir(), "")
 			if err != nil {
 				return nil, err
@@ -78,8 +82,7 @@ func Kustomize(ctx context.Context, path string) (resmap.ResMap, error) {
 			_ = os.Remove(kfile)
 		}()
 
-		pvd := provider.NewDefaultDepProvider()
-		err = createKustomization(path, fs, pvd.GetResourceFactory())
+		err = createKustomization(path, fs, pvd.GetResourceFactory(), singleFile)
 		if err != nil {
 			return nil, fmt.Errorf("failed create kustomization: %w", err)
 		}
@@ -98,7 +101,7 @@ func Kustomize(ctx context.Context, path string) (resmap.ResMap, error) {
 	return kustomizer.Run(fs, path)
 }
 
-func createKustomization(path string, fSys filesys.FileSystem, rf *resource.Factory) error {
+func createKustomization(path string, fSys filesys.FileSystem, rf *resource.Factory, singleFile bool) error {
 	kfile := filepath.Join(path, konfig.DefaultKustomizationFileName())
 	kus := kustypes.Kustomization{
 		TypeMeta: kustypes.TypeMeta{
@@ -107,7 +110,7 @@ func createKustomization(path string, fSys filesys.FileSystem, rf *resource.Fact
 		},
 	}
 
-	detected, err := detectResources(fSys, rf, path, true)
+	detected, err := detectResources(fSys, rf, path, singleFile)
 	if err != nil {
 		return err
 	}
@@ -122,7 +125,7 @@ func createKustomization(path string, fSys filesys.FileSystem, rf *resource.Fact
 	return os.WriteFile(kfile, kd, os.ModePerm)
 }
 
-func detectResources(fSys filesys.FileSystem, rf *resource.Factory, base string, recursive bool) ([]string, error) {
+func detectResources(fSys filesys.FileSystem, rf *resource.Factory, base string, singleFile bool) ([]string, error) {
 	var paths []string
 
 	err := fSys.Walk(base, func(path string, info os.FileInfo, err error) error {
@@ -140,9 +143,6 @@ func detectResources(fSys filesys.FileSystem, rf *resource.Factory, base string,
 		}
 
 		if info.IsDir() {
-			if !recursive {
-				return filepath.SkipDir
-			}
 			// If a sub-directory contains an existing kustomization file add the
 			// directory as a resource and do not decend into it.
 			for _, kfilename := range konfig.RecognizedKustomizationFileNames() {
@@ -158,8 +158,13 @@ func detectResources(fSys filesys.FileSystem, rf *resource.Factory, base string,
 			return err
 		}
 		if _, err := rf.SliceFromBytes(fContents); err != nil {
-			return err
+			if singleFile {
+				return err
+			}
+
+			return nil
 		}
+
 		paths = append(paths, normalizedPath)
 		return nil
 	})
