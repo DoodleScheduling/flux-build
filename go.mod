@@ -1,8 +1,8 @@
 module github.com/doodlescheduling/flux-build
 
-go 1.22.6
+go 1.23.0
 
-toolchain go1.22.7
+toolchain go1.24.1
 
 require (
 	github.com/Masterminds/semver/v3 v3.3.1
@@ -14,7 +14,7 @@ require (
 	github.com/fluxcd/pkg/apis/kustomize v1.6.1
 	github.com/fluxcd/pkg/oci v0.41.1
 	github.com/fluxcd/pkg/runtime v0.49.1
-	github.com/fluxcd/pkg/version v0.4.1
+	github.com/fluxcd/pkg/version v0.6.0
 	github.com/fluxcd/source-controller/api v1.4.1
 	github.com/go-logr/logr v1.4.2
 	github.com/go-logr/zapr v1.3.0
