@@ -6,7 +6,7 @@ toolchain go1.22.7
 
 require (
 	github.com/Masterminds/semver/v3 v3.3.1
-	github.com/alitto/pond v1.9.2
+	github.com/alitto/pond/v2 v2.3.4
 	github.com/cyphar/filepath-securejoin v0.4.1
 	github.com/docker/cli v27.5.1+incompatible
 	github.com/drone/envsubst v1.0.3
