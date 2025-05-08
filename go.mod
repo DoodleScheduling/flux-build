@@ -25,7 +25,7 @@ require (
 	github.com/otiai10/copy v1.14.1
 	github.com/sethvargo/go-envconfig v1.1.1
 	github.com/sigstore/cosign/v2 v2.4.0
-	github.com/sigstore/sigstore v1.8.11
+	github.com/sigstore/sigstore v1.9.4
 	github.com/spf13/pflag v1.0.6
 	go.uber.org/zap v1.27.0
 	golang.org/x/sync v0.10.0
