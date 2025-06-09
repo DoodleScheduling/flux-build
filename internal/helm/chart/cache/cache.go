@@ -55,7 +55,11 @@ func New(cacheType, cacheDir string) (Interface, error) {
 		if err != nil {
 			return nil, err
 		}
-		return &InMemory{dir: dir, cache: memcache.New[CacheKey]()}, nil
+		return &InMemory{
+			dir:     dir,
+			cache:   memcache.New[CacheKey](),
+			pathMap: make(map[CacheKey]string),
+		}, nil
 	case CacheTypeFS:
 		err := os.MkdirAll(cacheDir, os.ModePerm)
 		if err != nil {
