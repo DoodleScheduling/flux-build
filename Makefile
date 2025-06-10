@@ -23,8 +23,11 @@ test:
 
 .PHONY: e2e-test
 e2e-test: build
-	./flux-build test/e2e/overlay test/e2e/repositories | yq ea '[.] | sort_by(.kind) | .[] | splitDoc' > build.yaml
-	cmp test/e2e/expected.yaml build.yaml
+	./flux-build test/e2e/HelmRepository/overlay test/e2e/HelmRepository/repositories | yq ea '[.] | sort_by(.kind) | .[] | splitDoc' > build.yaml
+	cmp test/e2e/HelmRepository/expected.yaml build.yaml && echo "HelmRepository e2e test passed"
+	rm build.yaml
+	./flux-build test/e2e/GitRepository/overlay test/e2e/GitRepository/repositories | yq ea '[.] | sort_by(.kind) | .[] | splitDoc' > build.yaml
+	cmp test/e2e/GitRepository/expected.yaml build.yaml && echo "GitRepository e2e test passed"
 	rm build.yaml
 
 GOLANGCI_LINT = $(GOBIN)/golangci-lint
