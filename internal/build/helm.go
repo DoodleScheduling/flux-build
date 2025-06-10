@@ -27,6 +27,8 @@ import (
 	sourcev1beta2 "github.com/fluxcd/source-controller/api/v1beta2"
 	"github.com/go-git/go-git/v5"
 	"github.com/go-git/go-git/v5/plumbing"
+	"github.com/go-git/go-git/v5/plumbing/protocol/packp/capability"
+	"github.com/go-git/go-git/v5/plumbing/transport"
 	"github.com/go-git/go-git/v5/plumbing/transport/http"
 	"github.com/go-logr/logr"
 	"github.com/google/go-containerregistry/pkg/authn"
@@ -874,6 +876,17 @@ func (h *Helm) cloneAndExtractChart(ctx context.Context, repoURL string, gitRef 
 	gitCloneDir := filepath.Join(tempDir, "repo")
 
 	h.Logger.V(1).Info("cloning git repository", "url", repoURL, "dir", gitCloneDir)
+
+	// Git servers that exclusively utilize the v2 wire protocol, such as Azure DevOps
+	// and AWS CodeCommit, require support for the capabilities 'multi_ack'
+	// and 'multi_ack_detailed'. However, these capabilities are not fully
+	// implemented in go-git, see https://github.com/go-git/go-git/issues/64
+	// The following workaround is also used in Flux:
+	// https://github.com/fluxcd/pkg/blob/9be33b344d23d6e82b7973f7b580302763f188fd/git/gogit/client.go#L61
+
+	transport.UnsupportedCapabilities = []capability.Capability{
+		capability.ThinPack,
+	}
 
 	// Prepare clone options
 	cloneOptions := &git.CloneOptions{
