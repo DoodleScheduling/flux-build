@@ -14,7 +14,7 @@ builds:
 archives:
 - id: flux-build
   name_template: "flux-build_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
-  builds:
+  ids:
   - flux-build
 
 checksum:
