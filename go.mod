@@ -2,7 +2,7 @@ module github.com/doodlescheduling/flux-build
 
 go 1.22.6
 
-toolchain go1.22.7
+toolchain go1.24.4
 
 require (
 	github.com/Masterminds/semver/v3 v3.3.1
