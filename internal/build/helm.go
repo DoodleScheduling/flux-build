@@ -25,6 +25,11 @@ import (
 	"github.com/fluxcd/pkg/oci/auth/login"
 	"github.com/fluxcd/pkg/runtime/transform"
 	sourcev1beta2 "github.com/fluxcd/source-controller/api/v1beta2"
+	"github.com/go-git/go-git/v5"
+	"github.com/go-git/go-git/v5/plumbing"
+	"github.com/go-git/go-git/v5/plumbing/protocol/packp/capability"
+	"github.com/go-git/go-git/v5/plumbing/transport"
+	"github.com/go-git/go-git/v5/plumbing/transport/http"
 	"github.com/go-logr/logr"
 	"github.com/google/go-containerregistry/pkg/authn"
 	"github.com/google/go-containerregistry/pkg/name"
@@ -191,11 +196,26 @@ func (h *Helm) Build(ctx context.Context, r *resource.Resource, db map[ref]*reso
 
 func (h *Helm) getRepository(repository *resource.Resource) (runtime.Object, error) {
 	copy := repository.DeepCopy()
-	copy.SetGvk(resid.Gvk{
-		Group:   sourcev1beta2.GroupVersion.Group,
-		Version: sourcev1beta2.GroupVersion.Version,
-		Kind:    sourcev1beta2.HelmRepositoryKind,
-	})
+
+	// Try to decode as different repository types based on the source kind
+	sourceKind := repository.GetKind()
+
+	switch sourceKind {
+	case "HelmRepository":
+		copy.SetGvk(resid.Gvk{
+			Group:   sourcev1beta2.GroupVersion.Group,
+			Version: sourcev1beta2.GroupVersion.Version,
+			Kind:    sourcev1beta2.HelmRepositoryKind,
+		})
+	case "GitRepository":
+		copy.SetGvk(resid.Gvk{
+			Group:   sourcev1beta2.GroupVersion.Group,
+			Version: sourcev1beta2.GroupVersion.Version,
+			Kind:    sourcev1beta2.GitRepositoryKind,
+		})
+	default:
+		return nil, fmt.Errorf("unsupported source kind: %s", sourceKind)
+	}
 
 	b, err := copy.AsYAML()
 	if err != nil {
@@ -203,9 +223,8 @@ func (h *Helm) getRepository(repository *resource.Resource) (runtime.Object, err
 	}
 
 	r, _, err := h.opts.Decoder.Decode(b, nil, nil)
-
 	if err != nil {
-		return nil, fmt.Errorf("failed to decode into helmrepository: %w", err)
+		return nil, fmt.Errorf("failed to decode into %s: %w", sourceKind, err)
 	}
 
 	return r, nil
@@ -230,7 +249,8 @@ func (h *Helm) buildChart(ctx context.Context, repository runtime.Object, releas
 	switch repository := repository.(type) {
 	case *sourcev1beta2.HelmRepository:
 		return h.buildFromHelmRepository(ctx, chart, repository, b, db)
-
+	case *sourcev1beta2.GitRepository:
+		return h.buildFromGitRepository(ctx, chart, repository, b, db)
 	}
 
 	return fmt.Errorf("unsupported chart repository `%T`", repository)
@@ -626,6 +646,7 @@ func (h *Helm) buildFromHelmRepository(ctx context.Context, obj *sourcev1beta2.H
 
 	// Construct the chart builder with scoped configuration
 	cb := chart.NewRemoteBuilder(chartRepo)
+
 	opts := chart.BuildOptions{
 		ValuesFiles: obj.GetValuesFiles(),
 		//Force:       obj.Generation != obj.Status.ObservedGeneration,
@@ -679,6 +700,248 @@ func oidcAuth(ctx context.Context, url, provider string) (authn.Authenticator, e
 	}
 
 	return login.NewManager().Login(ctx, u, ref, opts)
+}
+
+// buildFromGitRepository attempts to pull a Helm chart with the
+// specified data from the v1beta2.GitRepository and v1beta2.HelmChart
+// objects.
+func (h *Helm) buildFromGitRepository(ctx context.Context, obj *sourcev1beta2.HelmChart, repo *sourcev1beta2.GitRepository, b *chart.Build, db map[ref]*resource.Resource) error {
+
+	// Used to login with the repository declared provider
+	ctxTimeout, cancel := context.WithTimeout(ctx, 1*time.Minute)
+	defer cancel()
+
+	repoURL := repo.Spec.URL
+	gitRef := repo.Spec.Reference
+
+	// Generate cache key based on git repository URL, ref, and chart path
+	var cacheKeyComponents []string
+	cacheKeyComponents = append(cacheKeyComponents, repoURL)
+
+	if gitRef != nil {
+		if gitRef.Branch != "" {
+			cacheKeyComponents = append(cacheKeyComponents, "branch", gitRef.Branch)
+		}
+		if gitRef.Tag != "" {
+			cacheKeyComponents = append(cacheKeyComponents, "tag", gitRef.Tag)
+		}
+		if gitRef.Commit != "" {
+			cacheKeyComponents = append(cacheKeyComponents, "commit", gitRef.Commit)
+		}
+	}
+
+	cacheKeyComponents = append(cacheKeyComponents, obj.Spec.Chart)
+	cacheKey := strings.Join(cacheKeyComponents, "/")
+
+	// Check if the chart is already in cache first.
+	ref := chart.RemoteReference{Name: obj.Spec.Chart, Version: obj.Spec.Version}
+	path, chartCacheKey, err := h.cache.GetOrLock(cacheKey, ref.WithEscapedName())
+	if err != nil {
+		return err
+	}
+
+	defer func() {
+		_ = h.cache.SetUnlock(chartCacheKey)
+	}()
+
+	_, err = os.Stat(path)
+	uncachedChart := os.IsNotExist(err)
+
+	// Create a temporary directory for the git clone
+	tempDir, err := os.MkdirTemp("", "gitrepo-")
+	if err != nil {
+		return fmt.Errorf("failed to create temp directory: %w", err)
+	}
+	defer os.RemoveAll(tempDir)
+
+	h.Logger.V(1).Info("using git repo", "gitrepo", repoURL, "ref", gitRef)
+
+	// Get the git repository secret if specified and configure authentication
+	var auth *http.BasicAuth
+	if secret, err := h.getGitRepositorySecret(repo, db); secret != nil || err != nil {
+		if err != nil {
+			return err
+		}
+		// Configure git credentials from secret if provided
+		auth, err = h.configureGitAuth(secret)
+		if err != nil {
+			return fmt.Errorf("failed to configure git authentication: %w", err)
+		}
+		h.Logger.V(1).Info("git secret configured", "secret", secret.Name)
+	}
+
+	// Clone the git repository using go-git
+	_, err = h.cloneAndExtractChart(ctxTimeout, repoURL, gitRef, obj.Spec.Chart, tempDir, auth)
+	if err != nil {
+		return fmt.Errorf("failed to clone git repository and extract chart: %w", err)
+	}
+
+	// Create a LocalReference for the cloned chart
+	gitCloneDir := filepath.Join(tempDir, "repo")
+	localRef := chart.LocalReference{
+		WorkDir: gitCloneDir,
+		Path:    obj.Spec.Chart,
+	}
+
+	// Use the local builder for building the chart from the cloned directory
+	dm := chart.NewDependencyManager()
+	cb := chart.NewLocalBuilder(dm)
+
+	opts := chart.BuildOptions{
+		ValuesFiles: obj.GetValuesFiles(),
+	}
+
+	if !uncachedChart {
+		opts.CachedChart = path
+		h.Logger.V(1).Info("using cached chart artifact", "chart", cacheKey, "path", path)
+	}
+
+	// Set the VersionMetadata to the object's Generation if ValuesFiles is defined
+	// This ensures changes can be noticed by the Artifact consumer
+	if len(opts.GetValuesFiles()) > 0 {
+		opts.VersionMetadata = strconv.FormatInt(obj.Generation, 10)
+	}
+
+	// Build the chart using the local builder
+	build, err := cb.Build(ctx, localRef, path, opts)
+	if err != nil {
+		return err
+	}
+
+	if uncachedChart {
+		h.Logger.V(1).Info("cached new chart", "chart", cacheKey, "path", path)
+	}
+
+	*b = *build
+	return nil
+}
+
+// getGitRepositorySecret retrieves the secret referenced by the GitRepository for authentication
+func (h *Helm) getGitRepositorySecret(repository *sourcev1beta2.GitRepository, db map[ref]*resource.Resource) (*corev1.Secret, error) {
+	if repository.Spec.SecretRef == nil {
+		return nil, nil
+	}
+
+	lookupRef := ref{
+		GroupKind: schema.GroupKind{
+			Group: "",
+			Kind:  "Secret",
+		},
+		Name:      repository.Spec.SecretRef.Name,
+		Namespace: repository.ObjectMeta.Namespace,
+	}
+
+	if secret, ok := db[lookupRef]; ok {
+		raw, err := secret.AsYAML()
+		if err != nil {
+			return nil, err
+		}
+
+		obj, _, err := h.opts.Decoder.Decode(raw, nil, nil)
+		if err != nil {
+			return nil, err
+		}
+
+		return obj.(*corev1.Secret), nil
+	}
+
+	return nil, fmt.Errorf("no repository secret `%v` found for gitrepository %s/%s", lookupRef, repository.Namespace, repository.Name)
+}
+
+// configureGitAuth configures Basic Auth from a Kubernetes secret for Git operations
+func (h *Helm) configureGitAuth(secret *corev1.Secret) (*http.BasicAuth, error) {
+	if secret == nil {
+		return nil, nil
+	}
+
+	username, hasUsername := secret.Data["username"]
+	password, hasPassword := secret.Data["password"]
+
+	if !hasUsername || !hasPassword {
+		return nil, fmt.Errorf("secret must contain both 'username' and 'password' keys for Basic Auth")
+	}
+
+	if len(username) == 0 || len(password) == 0 {
+		return nil, fmt.Errorf("username and password cannot be empty")
+	}
+
+	return &http.BasicAuth{
+		Username: string(username),
+		Password: string(password),
+	}, nil
+}
+
+// cloneAndExtractChart clones the git repository and extracts the chart using go-git
+func (h *Helm) cloneAndExtractChart(ctx context.Context, repoURL string, gitRef *sourcev1beta2.GitRepositoryRef, chartPath, tempDir string, auth *http.BasicAuth) (string, error) {
+	gitCloneDir := filepath.Join(tempDir, "repo")
+
+	h.Logger.V(1).Info("cloning git repository", "url", repoURL, "dir", gitCloneDir)
+
+	// Git servers that exclusively utilize the v2 wire protocol, such as Azure DevOps
+	// and AWS CodeCommit, require support for the capabilities 'multi_ack'
+	// and 'multi_ack_detailed'. However, these capabilities are not fully
+	// implemented in go-git, see https://github.com/go-git/go-git/issues/64
+	// The following workaround is also used in Flux:
+	// https://github.com/fluxcd/pkg/blob/9be33b344d23d6e82b7973f7b580302763f188fd/git/gogit/client.go#L61
+
+	transport.UnsupportedCapabilities = []capability.Capability{
+		capability.ThinPack,
+	}
+
+	// Prepare clone options
+	cloneOptions := &git.CloneOptions{
+		URL:   repoURL,
+		Depth: 1,
+		Auth:  auth,
+	}
+
+	// Set reference (branch, tag, or commit)
+	// If no reference is specified, fallback to master branch (like Flux Source Controller)
+	if gitRef != nil {
+		if gitRef.Branch != "" {
+			cloneOptions.ReferenceName = plumbing.NewBranchReferenceName(gitRef.Branch)
+		} else if gitRef.Tag != "" {
+			cloneOptions.ReferenceName = plumbing.NewTagReferenceName(gitRef.Tag)
+		} else if gitRef.Commit != "" {
+			// For specific commits, we need to clone without depth limit
+			cloneOptions.Depth = 0
+		}
+	} else {
+		// Fallback to master branch when no reference is specified
+		cloneOptions.ReferenceName = plumbing.NewBranchReferenceName("master")
+	}
+
+	// Clone the repository
+	repo, err := git.PlainCloneContext(ctx, gitCloneDir, false, cloneOptions)
+	if err != nil {
+		return "", fmt.Errorf("failed to clone git repository: %w", err)
+	}
+
+	// If a specific commit is requested, checkout that commit
+	if gitRef != nil && gitRef.Commit != "" {
+		workTree, err := repo.Worktree()
+		if err != nil {
+			return "", fmt.Errorf("failed to get worktree: %w", err)
+		}
+
+		commitHash := plumbing.NewHash(gitRef.Commit)
+		err = workTree.Checkout(&git.CheckoutOptions{
+			Hash: commitHash,
+		})
+		if err != nil {
+			return "", fmt.Errorf("failed to checkout commit %s: %w", gitRef.Commit, err)
+		}
+	}
+
+	// Return the path to the chart within the cloned repository
+	fullChartPath := filepath.Join(gitCloneDir, chartPath)
+
+	// Verify the chart directory exists
+	if _, err := os.Stat(fullChartPath); err != nil {
+		return "", fmt.Errorf("chart path %s not found in repository: %w", chartPath, err)
+	}
+
+	return fullChartPath, nil
 }
 
 // makeLoginOption returns a registry login option for the given HelmRepository.
