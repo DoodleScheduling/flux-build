@@ -28,7 +28,7 @@ require (
 	github.com/sigstore/sigstore v1.8.11
 	github.com/spf13/pflag v1.0.6
 	go.uber.org/zap v1.27.0
-	golang.org/x/sync v0.10.0
+	golang.org/x/sync v0.15.0
 	helm.sh/helm/v3 v3.16.3
 	k8s.io/api v0.31.3
 	k8s.io/apiextensions-apiserver v0.31.3
