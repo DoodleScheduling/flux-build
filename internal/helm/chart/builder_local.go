@@ -215,18 +215,26 @@ func mergeFileValues(baseDir string, paths []string) (map[string]interface{}, er
 }
 
 // copyFileToPath attempts to copy in to out. It returns an error if out already exists.
-func copyFileToPath(in, out string) error {
+func copyFileToPath(in, out string) (err error) {
 	o, err := os.Create(out)
 	if err != nil {
 		return fmt.Errorf("failed to create copy target: %w", err)
 	}
-	defer o.Close()
+	defer func() {
+		if cerr := o.Close(); cerr != nil && err == nil {
+			err = cerr
+		}
+	}()
 	i, err := os.Open(in)
 	if err != nil {
 		return fmt.Errorf("failed to open file to copy from: %w", err)
 	}
-	defer i.Close()
-	if _, err := o.ReadFrom(i); err != nil {
+	defer func() {
+		if cerr := i.Close(); cerr != nil && err == nil {
+			err = cerr
+		}
+	}()
+	if _, err = o.ReadFrom(i); err != nil {
 		return fmt.Errorf("failed to read from source during copy: %w", err)
 	}
 	return nil

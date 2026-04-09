@@ -10,7 +10,7 @@ import (
 	"github.com/alitto/pond"
 	"github.com/doodlescheduling/flux-build/internal/build"
 	chartcache "github.com/doodlescheduling/flux-build/internal/helm/chart/cache"
-	helmv1 "github.com/fluxcd/helm-controller/api/v2beta1"
+	helmv1 "github.com/fluxcd/helm-controller/api/v2beta1" //nolint:staticcheck // SA1019: migrate to api/v2 when chartRef path is implemented
 	"github.com/go-logr/logr"
 	"helm.sh/helm/v3/pkg/chartutil"
 	"sigs.k8s.io/kustomize/api/resmap"
@@ -35,7 +35,7 @@ func (a *Action) Run(ctx context.Context) error {
 
 	errs := make(chan error)
 	panicHandler := func(panic interface{}) {
-		errs <- fmt.Errorf("worker exits from a panic: %v\nStack trace: %s\n", panic, string(debug.Stack()))
+		errs <- fmt.Errorf("worker exits from a panic: %v; stack trace: %s", panic, string(debug.Stack()))
 	}
 
 	var lastErr error

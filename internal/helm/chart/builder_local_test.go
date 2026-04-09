@@ -93,7 +93,7 @@ func TestLocalBuilder_Build(t *testing.T) {
 			name:      "invalid version metadata",
 			reference: LocalReference{Path: "../testdata/charts/helmchart"},
 			buildOpts: BuildOptions{VersionMetadata: "^"},
-			wantErr:   "Invalid Metadata string",
+			wantErr:   "invalid metadata string",
 		},
 		{
 			name:         "with version metadata",
@@ -369,7 +369,7 @@ func Test_copyFileToPath(t *testing.T) {
 			g := NewWithT(t)
 
 			out := tmpFile("copy-0.1.0", ".tgz")
-			defer os.RemoveAll(out)
+			defer func() { _ = os.RemoveAll(out) }()
 			err := copyFileToPath(tt.in, out)
 			if tt.wantErr != "" {
 				g.Expect(err).To(HaveOccurred())

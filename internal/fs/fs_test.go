@@ -30,7 +30,9 @@ func TestRenameWithFallback(t *testing.T) {
 	if srcf, err := os.Create(srcpath); err != nil {
 		t.Fatal(err)
 	} else {
-		srcf.Close()
+		if err := srcf.Close(); err != nil {
+			t.Fatal(err)
+		}
 	}
 
 	if err := RenameWithFallback(srcpath, filepath.Join(dir, "dst")); err != nil {
@@ -85,7 +87,9 @@ func TestCopyDir(t *testing.T) {
 		if _, err = fh.Write([]byte(file.contents)); err != nil {
 			t.Fatal(err)
 		}
-		fh.Close()
+		if err := fh.Close(); err != nil {
+			t.Fatal(err)
+		}
 
 		files[i].fi, err = os.Stat(fn)
 		if err != nil {
@@ -254,7 +258,9 @@ func TestCopyDirFailOpen(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	srcf.Close()
+	if err := srcf.Close(); err != nil {
+		t.Fatal(err)
+	}
 
 	// setup source file so that it cannot be read
 	if err = os.Chmod(srcfn, 0o220); err != nil {
@@ -280,7 +286,9 @@ func TestCopyFile(t *testing.T) {
 	if _, err := srcf.Write([]byte(want)); err != nil {
 		t.Fatal(err)
 	}
-	srcf.Close()
+	if err := srcf.Close(); err != nil {
+		t.Fatal(err)
+	}
 
 	destf := filepath.Join(dir, "destf")
 	if err := copyFile(srcf.Name(), destf); err != nil {
@@ -411,7 +419,9 @@ func TestCopyFileFail(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	srcf.Close()
+	if err := srcf.Close(); err != nil {
+		t.Fatal(err)
+	}
 
 	var dstdir string
 
@@ -519,7 +529,9 @@ func TestIsSymlink(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	f.Close()
+	if err := f.Close(); err != nil {
+		t.Fatal(err)
+	}
 
 	dirSymlink := filepath.Join(dir, "dirSymlink")
 	fileSymlink := filepath.Join(dir, "fileSymlink")
@@ -585,6 +597,6 @@ func cleanUpDir(dir string) {
 		mu.Unlock()
 	}
 	if dir != "" {
-		os.RemoveAll(dir)
+		_ = os.RemoveAll(dir)
 	}
 }

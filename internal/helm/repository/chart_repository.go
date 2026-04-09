@@ -293,12 +293,12 @@ func (r *ChartRepository) CacheIndex() error {
 	}
 
 	if err = r.DownloadIndex(f); err != nil {
-		f.Close()
-		os.Remove(f.Name())
+		_ = f.Close()
+		_ = os.Remove(f.Name())
 		return fmt.Errorf("failed to cache index to temporary file: %w", err)
 	}
 	if err = f.Close(); err != nil {
-		os.Remove(f.Name())
+		_ = os.Remove(f.Name())
 		return fmt.Errorf("failed to close cached index file '%s': %w", f.Name(), err)
 	}
 
@@ -395,7 +395,7 @@ func (r *ChartRepository) Digest(algorithm digest.Algorithm) digest.Digest {
 
 	if _, ok := r.digests[algorithm]; !ok {
 		if f, err := os.Open(r.Path); err == nil {
-			defer f.Close()
+			defer func() { _ = f.Close() }()
 			rd := io.LimitReader(f, helm.MaxIndexSize)
 			if d, err := algorithm.FromReader(rd); err == nil {
 				r.digests[algorithm] = d

@@ -17,8 +17,8 @@ limitations under the License.
 package chart
 
 import (
+	"crypto/rand"
 	"encoding/hex"
-	"math/rand"
 	"os"
 	"path/filepath"
 	"testing"
@@ -240,7 +240,7 @@ func Test_packageToPath(t *testing.T) {
 	g.Expect(chart).ToNot(BeNil())
 
 	out := tmpFile("chart-0.1.0", ".tgz")
-	defer os.RemoveAll(out)
+	defer func() { _ = os.RemoveAll(out) }()
 	err = packageToPath(chart, out)
 	g.Expect(err).ToNot(HaveOccurred())
 	g.Expect(out).To(BeARegularFile())
@@ -250,6 +250,6 @@ func Test_packageToPath(t *testing.T) {
 
 func tmpFile(prefix, suffix string) string {
 	randBytes := make([]byte, 16)
-	rand.Read(randBytes)
+	_, _ = rand.Read(randBytes)
 	return filepath.Join(os.TempDir(), prefix+hex.EncodeToString(randBytes)+suffix)
 }

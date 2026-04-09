@@ -20,9 +20,11 @@ import (
 	"github.com/doodlescheduling/flux-build/internal/helm/repository"
 	soci "github.com/doodlescheduling/flux-build/internal/oci"
 	"github.com/drone/envsubst"
-	helmv2beta1 "github.com/fluxcd/helm-controller/api/v2beta1"
-	"github.com/fluxcd/pkg/oci"
-	"github.com/fluxcd/pkg/oci/auth/login"
+	helmv2beta1 "github.com/fluxcd/helm-controller/api/v2beta1" //nolint:staticcheck // SA1019: migrate to api/v2 when chartRef path is implemented
+	authaws "github.com/fluxcd/pkg/auth/aws"
+	authazure "github.com/fluxcd/pkg/auth/azure"
+	authgcp "github.com/fluxcd/pkg/auth/gcp"
+	authutils "github.com/fluxcd/pkg/auth/utils"
 	"github.com/fluxcd/pkg/runtime/transform"
 	sourcev1beta2 "github.com/fluxcd/source-controller/api/v1beta2"
 	"github.com/go-logr/logr"
@@ -59,6 +61,10 @@ type HelmOpts struct {
 type CacheKey struct {
 	Repo string
 }
+
+// errRegistryAuthOptional indicates cloud auto-login is unavailable (e.g. flux-build
+// running outside EKS/GKE/AKS). Callers may fall back to anonymous OCI pulls.
+var errRegistryAuthOptional = errors.New("cloud registry auto-login not available")
 
 type Helm struct {
 	cache     chartcache.Interface
@@ -130,7 +136,7 @@ func (h *Helm) Build(ctx context.Context, r *resource.Resource, db map[ref]*reso
 
 	namespace := hr.Spec.Chart.Spec.SourceRef.Namespace
 	if len(namespace) == 0 {
-		namespace = hr.ObjectMeta.Namespace
+		namespace = hr.Namespace
 	}
 	lookupRef := ref{
 		GroupKind: schema.GroupKind{
@@ -432,7 +438,7 @@ func (h *Helm) getHelmRepositorySecret(repository *sourcev1beta2.HelmRepository,
 			Kind:  "Secret",
 		},
 		Name:      repository.Spec.SecretRef.Name,
-		Namespace: repository.ObjectMeta.Namespace,
+		Namespace: repository.Namespace,
 	}
 
 	if secret, ok := db[lookupRef]; ok {
@@ -541,7 +547,7 @@ func (h *Helm) buildFromHelmRepository(ctx context.Context, obj *sourcev1beta2.H
 			}
 		} else if repo.Spec.Provider != sourcev1beta2.GenericOCIProvider && repo.Spec.Type == sourcev1beta2.HelmRepositoryTypeOCI && uncachedChart {
 			auth, authErr := oidcAuth(ctxTimeout, repo.Spec.URL, repo.Spec.Provider)
-			if authErr != nil && !errors.Is(authErr, oci.ErrUnconfiguredProvider) {
+			if authErr != nil && !errors.Is(authErr, errRegistryAuthOptional) {
 				return fmt.Errorf("failed to get credential from %s: %w", repo.Spec.Provider, authErr)
 			}
 			if auth != nil {
@@ -660,25 +666,49 @@ func (h *Helm) buildFromHelmRepository(ctx context.Context, obj *sourcev1beta2.H
 	return nil
 }
 
-// oidcAuth generates the OIDC credential authenticator based on the specified cloud provider.
+// oidcAuth generates registry credentials using fluxcd/pkg/auth (controller/workload identity).
 func oidcAuth(ctx context.Context, url, provider string) (authn.Authenticator, error) {
 	u := strings.TrimPrefix(url, sourcev1beta2.OCIRepositoryPrefix)
-	ref, err := name.ParseReference(u)
-	if err != nil {
+	if _, err := name.ParseReference(u); err != nil {
 		return nil, fmt.Errorf("failed to parse URL '%s': %w", u, err)
 	}
 
-	opts := login.ProviderOptions{}
+	var providerName string
 	switch provider {
 	case sourcev1beta2.AmazonOCIProvider:
-		opts.AwsAutoLogin = true
+		providerName = authaws.ProviderName
 	case sourcev1beta2.AzureOCIProvider:
-		opts.AzureAutoLogin = true
+		providerName = authazure.ProviderName
 	case sourcev1beta2.GoogleOCIProvider:
-		opts.GcpAutoLogin = true
+		providerName = authgcp.ProviderName
+	default:
+		return nil, fmt.Errorf("unsupported OCI provider %q", provider)
 	}
 
-	return login.NewManager().Login(ctx, u, ref, opts)
+	authNZ, err := authutils.GetArtifactRegistryCredentials(ctx, providerName, u)
+	if err != nil {
+		if isSkippableCloudRegistryAuthErr(err) {
+			return nil, errors.Join(errRegistryAuthOptional, err)
+		}
+		return nil, err
+	}
+	return authNZ, nil
+}
+
+func isSkippableCloudRegistryAuthErr(err error) bool {
+	if err == nil {
+		return false
+	}
+	msg := err.Error()
+	switch {
+	case strings.Contains(msg, "AWS_REGION environment variable is not set"):
+		return true
+	case strings.Contains(msg, "could not find default credentials"):
+		return true
+	case strings.Contains(msg, "DefaultAzureCredential authentication failed"):
+		return true
+	}
+	return false
 }
 
 // makeLoginOption returns a registry login option for the given HelmRepository.

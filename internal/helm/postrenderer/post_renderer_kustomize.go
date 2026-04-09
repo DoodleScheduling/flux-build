@@ -21,14 +21,14 @@ import (
 	"encoding/json"
 	"sync"
 
-	"sigs.k8s.io/kustomize/api/filesys"
+	"sigs.k8s.io/kustomize/kyaml/filesys"
 	"sigs.k8s.io/kustomize/api/krusty"
 	"sigs.k8s.io/kustomize/api/resmap"
 	kustypes "sigs.k8s.io/kustomize/api/types"
 
 	"github.com/fluxcd/pkg/apis/kustomize"
 
-	v2 "github.com/fluxcd/helm-controller/api/v2beta1"
+	v2 "github.com/fluxcd/helm-controller/api/v2beta1" //nolint:staticcheck // SA1019: tied to HelmRelease type in helm.go
 )
 
 type postRendererKustomize struct {
@@ -88,9 +88,9 @@ func adaptImages(images []kustomize.Image) (output []kustypes.Image) {
 func adaptSelector(selector *kustomize.Selector) (output *kustypes.Selector) {
 	if selector != nil {
 		output = &kustypes.Selector{}
-		output.Gvk.Group = selector.Group
-		output.Gvk.Kind = selector.Kind
-		output.Gvk.Version = selector.Version
+		output.Group = selector.Group
+		output.Kind = selector.Kind
+		output.Version = selector.Version
 		output.Name = selector.Name
 		output.Namespace = selector.Namespace
 		output.LabelSelector = selector.LabelSelector
@@ -123,7 +123,9 @@ func (k *postRendererKustomize) Run(renderedManifests *bytes.Buffer) (modifiedMa
 
 	// Add strategic merge patches.
 	for _, m := range k.spec.PatchesStrategicMerge {
-		cfg.PatchesStrategicMerge = append(cfg.PatchesStrategicMerge, kustypes.PatchStrategicMerge(m.Raw))
+		cfg.Patches = append(cfg.Patches, kustypes.Patch{
+			Patch: string(m.Raw),
+		})
 	}
 
 	// Add JSON 6902 patches.
@@ -132,7 +134,7 @@ func (k *postRendererKustomize) Run(renderedManifests *bytes.Buffer) (modifiedMa
 		if err != nil {
 			return nil, err
 		}
-		cfg.PatchesJson6902 = append(cfg.PatchesJson6902, kustypes.Patch{
+		cfg.Patches = append(cfg.Patches, kustypes.Patch{
 			Patch:  string(patch),
 			Target: adaptSelector(&m.Target),
 		})

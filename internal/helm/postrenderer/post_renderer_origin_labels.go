@@ -20,18 +20,18 @@ import (
 	"bytes"
 	"fmt"
 
-	"sigs.k8s.io/kustomize/api/builtins"
+	"sigs.k8s.io/kustomize/api/builtins" //nolint:staticcheck // LabelTransformerPlugin; no stable non-deprecated API in this kustomize version
 	"sigs.k8s.io/kustomize/api/provider"
 	"sigs.k8s.io/kustomize/api/resmap"
 	kustypes "sigs.k8s.io/kustomize/api/types"
 
-	v2 "github.com/fluxcd/helm-controller/api/v2beta1"
+	v2 "github.com/fluxcd/helm-controller/api/v2beta1" //nolint:staticcheck // SA1019: tied to HelmRelease type in helm.go
 )
 
 func NewPostRendererOriginLabels(release *v2.HelmRelease) *postRendererOriginLabels {
 	return &postRendererOriginLabels{
-		name:      release.ObjectMeta.Name,
-		namespace: release.ObjectMeta.Namespace,
+		name:      release.Name,
+		namespace: release.Namespace,
 	}
 }
 
@@ -49,7 +49,7 @@ func (k *postRendererOriginLabels) Run(renderedManifests *bytes.Buffer) (modifie
 		return nil, err
 	}
 
-	labelTransformer := builtins.LabelTransformerPlugin{
+	labelTransformer := builtins.LabelTransformerPlugin{ //nolint:staticcheck
 		Labels: originLabels(k.name, k.namespace),
 		FieldSpecs: []kustypes.FieldSpec{
 			{Path: "metadata/labels", CreateIfNotPresent: true},
