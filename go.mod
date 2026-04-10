@@ -18,7 +18,7 @@ require (
 	github.com/go-logr/zapr v1.3.0
 	github.com/gofrs/flock v0.13.0
 	github.com/google/go-containerregistry v0.21.4
-	github.com/onsi/gomega v1.39.0
+	github.com/onsi/gomega v1.39.1
 	github.com/opencontainers/go-digest v1.0.0
 	github.com/otiai10/copy v1.14.1
 	github.com/sethvargo/go-envconfig v1.3.0
@@ -29,7 +29,6 @@ require (
 	golang.org/x/sync v0.20.0
 	helm.sh/helm/v3 v3.20.1
 	k8s.io/api v0.35.3
-	k8s.io/apiextensions-apiserver v0.35.3
 	k8s.io/apimachinery v0.35.3
 	k8s.io/helm v2.17.0+incompatible
 	sigs.k8s.io/kustomize/api v0.21.1
@@ -290,6 +289,7 @@ require (
 	gopkg.in/yaml.v2 v2.4.0 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 	gotest.tools/v3 v3.4.0 // indirect
+	k8s.io/apiextensions-apiserver v0.35.3 // indirect
 	k8s.io/apiserver v0.35.3 // indirect
 	k8s.io/cli-runtime v0.35.3 // indirect
 	k8s.io/client-go v0.35.3 // indirect
