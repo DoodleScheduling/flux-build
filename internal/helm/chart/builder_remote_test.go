@@ -151,7 +151,7 @@ entries:
 			reference:  RemoteReference{Name: "grafana"},
 			repository: mockRepo(),
 			buildOpts:  BuildOptions{VersionMetadata: "^"},
-			wantErr:    "Invalid Metadata string",
+			wantErr:    "invalid metadata string",
 		},
 		{
 			name:         "with version metadata",
@@ -195,7 +195,7 @@ entries:
 			if tt.repository != nil {
 				g.Expect(tt.repository.CacheIndex()).ToNot(HaveOccurred())
 				// Cleanup the cache index path.
-				defer os.Remove(tt.repository.Path)
+				defer func() { _ = os.Remove(tt.repository.Path) }()
 			}
 
 			b := NewRemoteBuilder(tt.repository)
@@ -299,7 +299,7 @@ func TestRemoteBuilder_BuildFromOCIChartRepository(t *testing.T) {
 			reference:  RemoteReference{Name: "grafana"},
 			repository: mockRepo(),
 			buildOpts:  BuildOptions{VersionMetadata: "^"},
-			wantErr:    "Invalid Metadata string",
+			wantErr:    "invalid metadata string",
 		},
 		{
 			name:         "with version metadata",
@@ -348,7 +348,7 @@ func TestRemoteBuilder_BuildFromOCIChartRepository(t *testing.T) {
 
 			tmpDir, err := os.MkdirTemp("", "remote-chart-builder-")
 			g.Expect(err).ToNot(HaveOccurred())
-			defer os.RemoveAll(tmpDir)
+			defer func() { _ = os.RemoveAll(tmpDir) }()
 			targetPath := filepath.Join(tmpDir, "chart.tgz")
 
 			b := NewRemoteBuilder(tt.repository)
@@ -413,7 +413,7 @@ entries:
 	err = repository.CacheIndex()
 	g.Expect(err).ToNot(HaveOccurred())
 	// Cleanup the cache index path.
-	defer os.Remove(repository.Path)
+	defer func() { _ = os.Remove(repository.Path) }()
 
 	b := NewRemoteBuilder(repository)
 
@@ -522,7 +522,7 @@ func Test_validatePackageAndWriteToPath(t *testing.T) {
 
 	validF, err := os.Open("./../testdata/charts/helmchart-0.1.0.tgz")
 	g.Expect(err).ToNot(HaveOccurred())
-	defer validF.Close()
+	defer func() { _ = validF.Close() }()
 
 	chartPath := filepath.Join(tmpDir, "chart.tgz")
 	err = validatePackageAndWriteToPath(validF, chartPath)
@@ -531,7 +531,7 @@ func Test_validatePackageAndWriteToPath(t *testing.T) {
 
 	emptyF, err := os.Open("./../testdata/charts/empty.tgz")
 	g.Expect(err).ToNot(HaveOccurred())
-	defer emptyF.Close()
+	defer func() { _ = emptyF.Close() }()
 	err = validatePackageAndWriteToPath(emptyF, filepath.Join(tmpDir, "out.tgz"))
 	g.Expect(err).To(HaveOccurred())
 }

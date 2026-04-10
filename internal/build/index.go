@@ -8,8 +8,8 @@ import (
 type ResourceIndex map[ref]*resource.Resource
 
 func (r ResourceIndex) Push(resources []*resource.Resource) error {
-	for _, resource := range resources {
-		resMeta, err := resource.RNode.GetMeta()
+	for _, res := range resources {
+		resMeta, err := res.GetMeta()
 		if err != nil {
 			return err
 		}
@@ -23,7 +23,7 @@ func (r ResourceIndex) Push(resources []*resource.Resource) error {
 			},
 			Name:      resMeta.Name,
 			Namespace: resMeta.Namespace,
-		}] = resource
+		}] = res
 	}
 
 	return nil

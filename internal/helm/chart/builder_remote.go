@@ -255,7 +255,7 @@ func validatePackageAndWriteToPath(reader io.Reader, out string) error {
 	if err != nil {
 		return fmt.Errorf("failed to create temporary file for chart: %w", err)
 	}
-	defer os.Remove(tmpFile.Name())
+	defer func() { _ = os.Remove(tmpFile.Name()) }()
 	if _, err = tmpFile.ReadFrom(reader); err != nil {
 		_ = tmpFile.Close()
 		return fmt.Errorf("failed to write chart to file: %w", err)

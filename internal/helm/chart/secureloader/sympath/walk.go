@@ -58,8 +58,8 @@ func readDirNames(dirname string) ([]string, error) {
 	if err != nil {
 		return nil, err
 	}
+	defer func() { _ = f.Close() }()
 	names, err := f.Readdirnames(-1)
-	f.Close()
 	if err != nil {
 		return nil, err
 	}

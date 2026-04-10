@@ -92,8 +92,6 @@ func TLSClientConfigFromSecret(secret corev1.Secret, repositoryUrl string) (*tls
 		tlsConf.RootCAs = cp
 	}
 
-	tlsConf.BuildNameToCertificate()
-
 	u, err := url.Parse(repositoryUrl)
 	if err != nil {
 		return nil, fmt.Errorf("cannot parse repository URL: %w", err)

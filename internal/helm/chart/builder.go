@@ -175,10 +175,10 @@ func (b *Build) Summary() string {
 			action = "packaged"
 		}
 	}
-	s.WriteString(fmt.Sprintf("%s '%s' chart with version '%s'", action, b.Name, b.Version))
+	_, _ = fmt.Fprintf(&s, "%s '%s' chart with version '%s'", action, b.Name, b.Version)
 
 	if len(b.ValuesFiles) > 0 {
-		s.WriteString(fmt.Sprintf(" and merged values files %v", b.ValuesFiles))
+		_, _ = fmt.Fprintf(&s, " and merged values files %v", b.ValuesFiles)
 	}
 
 	return s.String()
@@ -215,7 +215,7 @@ func packageToPath(chart *helmchart.Chart, out string) error {
 	if err != nil {
 		return fmt.Errorf("failed to create temporary directory for chart: %w", err)
 	}
-	defer os.RemoveAll(o)
+	defer func() { _ = os.RemoveAll(o) }()
 
 	p, err := chartutil.Save(chart, o)
 	if err != nil {

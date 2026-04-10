@@ -20,18 +20,16 @@ import (
 	"bytes"
 	"fmt"
 
-	"sigs.k8s.io/kustomize/api/builtins"
+	helmv2 "github.com/fluxcd/helm-controller/api/v2"
 	"sigs.k8s.io/kustomize/api/provider"
 	"sigs.k8s.io/kustomize/api/resmap"
-	kustypes "sigs.k8s.io/kustomize/api/types"
-
-	v2 "github.com/fluxcd/helm-controller/api/v2beta1"
+	"sigs.k8s.io/kustomize/kyaml/yaml"
 )
 
-func NewPostRendererOriginLabels(release *v2.HelmRelease) *postRendererOriginLabels {
+func NewPostRendererOriginLabels(release *helmv2.HelmRelease) *postRendererOriginLabels {
 	return &postRendererOriginLabels{
-		name:      release.ObjectMeta.Name,
-		namespace: release.ObjectMeta.Namespace,
+		name:      release.Name,
+		namespace: release.Namespace,
 	}
 }
 
@@ -49,27 +47,26 @@ func (k *postRendererOriginLabels) Run(renderedManifests *bytes.Buffer) (modifie
 		return nil, err
 	}
 
-	labelTransformer := builtins.LabelTransformerPlugin{
-		Labels: originLabels(k.name, k.namespace),
-		FieldSpecs: []kustypes.FieldSpec{
-			{Path: "metadata/labels", CreateIfNotPresent: true},
-		},
-	}
-	if err := labelTransformer.Transform(resMap); err != nil {
-		return nil, err
+	labels := originLabels(k.name, k.namespace)
+	for _, res := range resMap.Resources() {
+		for key, val := range labels {
+			if err := res.PipeE(yaml.SetLabel(key, val)); err != nil {
+				return nil, err
+			}
+		}
 	}
 
-	yaml, err := resMap.AsYaml()
+	yamlOut, err := resMap.AsYaml()
 	if err != nil {
 		return nil, err
 	}
 
-	return bytes.NewBuffer(yaml), nil
+	return bytes.NewBuffer(yamlOut), nil
 }
 
 func originLabels(name, namespace string) map[string]string {
 	return map[string]string{
-		fmt.Sprintf("%s/name", v2.GroupVersion.Group):      name,
-		fmt.Sprintf("%s/namespace", v2.GroupVersion.Group): namespace,
+		fmt.Sprintf("%s/name", helmv2.GroupVersion.Group):      name,
+		fmt.Sprintf("%s/namespace", helmv2.GroupVersion.Group): namespace,
 	}
 }
