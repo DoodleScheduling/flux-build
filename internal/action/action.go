@@ -2,10 +2,11 @@ package action
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"os"
-	"runtime/debug"
+	"sync"
 
 	"github.com/alitto/pond/v2"
 	"github.com/doodlescheduling/flux-build/internal/build"
@@ -29,20 +30,30 @@ type Action struct {
 	Logger           logr.Logger
 }
 
+// submit forwards task panics (captured by pond) to errs, matching pre-pond-v2 PanicHandler behavior.
+func submit(p pond.Pool, task func(), errs chan<- error, panicForward *sync.WaitGroup) {
+	fut := p.Submit(task)
+	panicForward.Add(1)
+	go func() {
+		defer panicForward.Done()
+		if err := fut.Wait(); err != nil && errors.Is(err, pond.ErrPanic) {
+			errs <- fmt.Errorf("worker exits from a panic: %w", err)
+		}
+	}()
+}
+
 func (a *Action) Run(ctx context.Context) error {
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
 	errs := make(chan error)
-	panicHandler := func(panic interface{}) {
-		errs <- fmt.Errorf("worker exits from a panic: %v; stack trace: %s", panic, string(debug.Stack()))
-	}
+	var panicForward sync.WaitGroup
 
 	var lastErr error
-	helmResultPool := pond.New(1, 1, pond.Context(ctx), pond.PanicHandler(panicHandler))
-	kustomizePool := pond.New(len(a.Paths), len(a.Paths), pond.Context(ctx), pond.PanicHandler(panicHandler))
-	helmPool := pond.New(a.Workers, a.Workers, pond.Context(ctx), pond.PanicHandler(panicHandler))
-	resourcePool := pond.New(1, 1, pond.Context(ctx), pond.PanicHandler(panicHandler))
+	helmResultPool := pond.NewPool(1, pond.WithContext(ctx))
+	kustomizePool := pond.NewPool(len(a.Paths), pond.WithContext(ctx))
+	helmPool := pond.NewPool(a.Workers, pond.WithContext(ctx))
+	resourcePool := pond.NewPool(1, pond.WithContext(ctx))
 
 	defer func() {
 		if lastErr != nil && !a.AllowFailure {
@@ -74,7 +85,7 @@ func (a *Action) Run(ctx context.Context) error {
 		Cache:            a.Cache,
 	})
 
-	helmResultPool.Submit(func() {
+	submit(helmResultPool, func() {
 		for index := range manifests {
 			y, err := index.AsYaml()
 			if err != nil {
@@ -90,13 +101,13 @@ func (a *Action) Run(ctx context.Context) error {
 				continue
 			}
 		}
-	})
+	}, errs, &panicForward)
 
 	for _, path := range a.Paths {
 		p := path
 		a.Logger.Info("build kustomize path", "path", p)
 
-		kustomizePool.Submit(func() {
+		submit(kustomizePool, func() {
 			if index, err := build.Kustomize(ctx, p); err != nil {
 				a.Logger.Error(err, "failed build kustomization", "path", p)
 				errs <- err
@@ -104,18 +115,18 @@ func (a *Action) Run(ctx context.Context) error {
 				manifests <- index
 				resources <- index
 			}
-		})
+		}, errs, &panicForward)
 	}
 
 	index := make(build.ResourceIndex)
-	resourcePool.Submit(func() {
+	submit(resourcePool, func() {
 		for build := range resources {
 			if err := index.Push(build.Resources()); err != nil {
 				errs <- err
 				continue
 			}
 		}
-	})
+	}, errs, &panicForward)
 
 	kustomizePool.StopAndWait()
 	close(resources)
@@ -131,7 +142,7 @@ func (a *Action) Run(ctx context.Context) error {
 			break
 		}
 
-		helmPool.Submit(func() {
+		submit(helmPool, func() {
 			a.Logger.Info("build helm release", "namespace", res.GetNamespace(), "name", res.GetName())
 			index, err := helmBuilder.Build(ctx, res, index)
 			if err != nil {
@@ -141,12 +152,13 @@ func (a *Action) Run(ctx context.Context) error {
 			}
 
 			manifests <- index
-		})
+		}, errs, &panicForward)
 	}
 
 	helmPool.StopAndWait()
 	close(manifests)
 	helmResultPool.StopAndWait()
+	panicForward.Wait()
 	close(errs)
 
 	return nil
