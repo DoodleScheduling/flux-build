@@ -19,6 +19,7 @@ package postrenderer
 import (
 	"bytes"
 	"encoding/json"
+	"strings"
 	"sync"
 
 	"sigs.k8s.io/kustomize/api/krusty"
@@ -28,14 +29,14 @@ import (
 
 	"github.com/fluxcd/pkg/apis/kustomize"
 
-	v2 "github.com/fluxcd/helm-controller/api/v2beta1" //nolint:staticcheck // SA1019: tied to HelmRelease type in helm.go
+	helmv2 "github.com/fluxcd/helm-controller/api/v2"
 )
 
 type postRendererKustomize struct {
-	spec *v2.Kustomize
+	spec *helmv2.Kustomize
 }
 
-func NewPostRendererKustomize(spec *v2.Kustomize) *postRendererKustomize {
+func NewPostRendererKustomize(spec *helmv2.Kustomize) *postRendererKustomize {
 	return &postRendererKustomize{
 		spec: spec,
 	}
@@ -113,30 +114,15 @@ func (k *postRendererKustomize) Run(renderedManifests *bytes.Buffer) (modifiedMa
 		return nil, err
 	}
 
-	// Add patches.
+	// Add patches (strategic merge, JSON6902, or RFC6902 as inline patch strings).
 	for _, m := range k.spec.Patches {
-		cfg.Patches = append(cfg.Patches, kustypes.Patch{
-			Patch:  m.Patch,
-			Target: adaptSelector(m.Target),
-		})
-	}
-
-	// Add strategic merge patches.
-	for _, m := range k.spec.PatchesStrategicMerge {
-		cfg.Patches = append(cfg.Patches, kustypes.Patch{
-			Patch: string(m.Raw),
-		})
-	}
-
-	// Add JSON 6902 patches.
-	for _, m := range k.spec.PatchesJSON6902 {
-		patch, err := json.Marshal(m.Patch)
-		if err != nil {
-			return nil, err
+		p := strings.TrimSpace(m.Patch)
+		if p == "" {
+			continue
 		}
 		cfg.Patches = append(cfg.Patches, kustypes.Patch{
-			Patch:  string(patch),
-			Target: adaptSelector(&m.Target),
+			Patch:  p,
+			Target: adaptSelector(m.Target),
 		})
 	}
 

@@ -10,7 +10,7 @@ import (
 	"github.com/alitto/pond"
 	"github.com/doodlescheduling/flux-build/internal/build"
 	chartcache "github.com/doodlescheduling/flux-build/internal/helm/chart/cache"
-	helmv1 "github.com/fluxcd/helm-controller/api/v2beta1" //nolint:staticcheck // SA1019: migrate to api/v2 when chartRef path is implemented
+	helmv2 "github.com/fluxcd/helm-controller/api/v2"
 	"github.com/go-logr/logr"
 	"helm.sh/helm/v3/pkg/chartutil"
 	"sigs.k8s.io/kustomize/api/resmap"
@@ -123,7 +123,7 @@ func (a *Action) Run(ctx context.Context) error {
 
 	for _, r := range index {
 		res := r
-		if r.GetKind() != helmv1.HelmReleaseKind {
+		if r.GetKind() != helmv2.HelmReleaseKind {
 			continue
 		}
 

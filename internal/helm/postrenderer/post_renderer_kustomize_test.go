@@ -20,14 +20,14 @@ import (
 	"bytes"
 	"encoding/json"
 	"reflect"
+	"strings"
 	"testing"
 
-	v1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	"sigs.k8s.io/yaml"
 
 	"github.com/fluxcd/pkg/apis/kustomize"
 
-	v2 "github.com/fluxcd/helm-controller/api/v2beta1" //nolint:staticcheck // SA1019: tied to HelmRelease type in helm.go
+	helmv2 "github.com/fluxcd/helm-controller/api/v2"
 )
 
 const replaceImageMock = `apiVersion: v1
@@ -273,31 +273,53 @@ spec:
 	}
 }
 
-func mockKustomize(patches, patchesStrategicMerge, patchesJson6902, images string) (*v2.Kustomize, error) {
-	var targeted []kustomize.Patch
-	if err := yaml.Unmarshal([]byte(patches), &targeted); err != nil {
-		return nil, err
+func mockKustomize(patches, patchesStrategicMerge, patchesJson6902, images string) (*helmv2.Kustomize, error) {
+	var all []kustomize.Patch
+	if s := strings.TrimSpace(patches); s != "" {
+		var targeted []kustomize.Patch
+		if err := yaml.Unmarshal([]byte(s), &targeted); err != nil {
+			return nil, err
+		}
+		all = append(all, targeted...)
 	}
-	b, err := yaml.YAMLToJSON([]byte(patchesStrategicMerge))
-	if err != nil {
-		return nil, err
+	if s := strings.TrimSpace(patchesStrategicMerge); s != "" {
+		var sm []map[string]interface{}
+		if err := yaml.Unmarshal([]byte(s), &sm); err != nil {
+			return nil, err
+		}
+		for _, doc := range sm {
+			patchYAML, err := yaml.Marshal(doc)
+			if err != nil {
+				return nil, err
+			}
+			all = append(all, kustomize.Patch{Patch: string(patchYAML)})
+		}
 	}
-	var strategicMerge []v1.JSON
-	if err := json.Unmarshal(b, &strategicMerge); err != nil {
-		return nil, err
-	}
-	var json6902 []kustomize.JSON6902Patch
-	if err := yaml.Unmarshal([]byte(patchesJson6902), &json6902); err != nil {
-		return nil, err
+	if s := strings.TrimSpace(patchesJson6902); s != "" {
+		var j6902 []kustomize.JSON6902Patch
+		if err := yaml.Unmarshal([]byte(s), &j6902); err != nil {
+			return nil, err
+		}
+		for _, p := range j6902 {
+			b, err := json.Marshal(p.Patch)
+			if err != nil {
+				return nil, err
+			}
+			t := p.Target
+			all = append(all, kustomize.Patch{
+				Patch:  string(b),
+				Target: &t,
+			})
+		}
 	}
 	var imgs []kustomize.Image
-	if err := yaml.Unmarshal([]byte(images), &imgs); err != nil {
-		return nil, err
+	if s := strings.TrimSpace(images); s != "" {
+		if err := yaml.Unmarshal([]byte(s), &imgs); err != nil {
+			return nil, err
+		}
 	}
-	return &v2.Kustomize{
-		Patches:               targeted,
-		PatchesStrategicMerge: strategicMerge,
-		PatchesJSON6902:       json6902,
-		Images:                imgs,
+	return &helmv2.Kustomize{
+		Patches: all,
+		Images:  imgs,
 	}, nil
 }

@@ -3,12 +3,12 @@ package postrenderer
 import (
 	"bytes"
 
-	v2 "github.com/fluxcd/helm-controller/api/v2beta1" //nolint:staticcheck // SA1019: tied to HelmRelease type in helm.go
+	helmv2 "github.com/fluxcd/helm-controller/api/v2"
 	"sigs.k8s.io/kustomize/api/provider"
 	"sigs.k8s.io/kustomize/api/resmap"
 )
 
-func NewPostRendererNamespace(release *v2.HelmRelease) *postRendererNamespace {
+func NewPostRendererNamespace(release *helmv2.HelmRelease) *postRendererNamespace {
 	ns := release.GetReleaseNamespace()
 	if ns == "" {
 		ns = "default"
