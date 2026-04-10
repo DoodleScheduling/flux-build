@@ -95,26 +95,20 @@ homebrew_casks:
 
 signs:
 - cmd: cosign
-  certificate: "${artifact}.pem"
-  env:
-  - COSIGN_EXPERIMENTAL=1
+  signature: "${artifact}.sigstore.json"
   args:
-  - sign-blob
-  - "--output-certificate=${certificate}"
-  - "--output-signature=${signature}"
+  - "sign-blob"
+  - "--yes"
+  - "--bundle=${signature}"
   - "${artifact}"
-  - --yes
   artifacts: all
-  output: true
 
 docker_signs:
 - cmd: cosign
-  env:
-  - GITHUB_TOKEN=$RUNNER_TOKEN
-  - COSIGN_EXPERIMENTAL=1
   artifacts: images
   output: true
   args:
   - 'sign'
   - '${artifact}'
   - --yes
+
