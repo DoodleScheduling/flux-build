@@ -688,7 +688,7 @@ func oidcAuth(ctx context.Context, url, provider string) (authn.Authenticator, e
 		providerName = authazure.ProviderName
 	case sourcev1beta2.GoogleOCIProvider:
 		providerName = authgcp.ProviderName
-	default:
+	case "":
 		return nil, fmt.Errorf("unsupported OCI provider %q", provider)
 	}
 
