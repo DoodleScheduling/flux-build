@@ -688,8 +688,8 @@ func oidcAuth(ctx context.Context, url, provider string) (authn.Authenticator, e
 		providerName = authazure.ProviderName
 	case sourcev1beta2.GoogleOCIProvider:
 		providerName = authgcp.ProviderName
-  case "":
-    return nil, fmt.Errorf("unsupported OCI provider %q", provider)
+	case "":
+		return nil, fmt.Errorf("unsupported OCI provider %q", provider)
 	}
 
 	authNZ, err := authutils.GetArtifactRegistryCredentials(ctx, providerName, u)
