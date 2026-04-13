@@ -50,7 +50,7 @@ flux-build helmrelease.yaml /path/to/helmreposiories
 ### Brew
 ```
 brew tap doodlescheduling/flux-build
-brew install flux-build
+brew install --cask flux-build
 ```
 
 ### Docker
