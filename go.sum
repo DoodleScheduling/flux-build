@@ -188,6 +188,8 @@ github.com/aws/aws-sdk-go-v2/service/sts v1.41.10 h1:p8ogvvLugcR/zLBXTXrTkj0RYBU
 github.com/aws/aws-sdk-go-v2/service/sts v1.41.10/go.mod h1:60dv0eZJfeVXfbT1tFJinbHrDfSJ2GZl4Q//OSSNAVw=
 github.com/aws/smithy-go v1.24.3 h1:XgOAaUgx+HhVBoP4v8n6HCQoTRDhoMghKqw4LNHsDNg=
 github.com/aws/smithy-go v1.24.3/go.mod h1:YE2RhdIuDbA5E5bTdciG9KrW3+TiEONeUWCqxX9i1Fc=
+github.com/aws/smithy-go/aws-http-auth v1.1.3 h1:8/T7/2n8x+x9sIAmi5h5mDKS8v7/u2GEpF6T6RrGMrc=
+github.com/aws/smithy-go/aws-http-auth v1.1.3/go.mod h1:KL46VTjVK9De3jurMqDLBkXCP9vrAvD03zQrmyzyrQ0=
 github.com/awslabs/amazon-ecr-credential-helper/ecr-login v0.12.0 h1:JFWXO6QPihCknDdnL6VaQE57km4ZKheHIGd9YiOGcTo=
 github.com/awslabs/amazon-ecr-credential-helper/ecr-login v0.12.0/go.mod h1:046/oLyFlYdAghYQE2yHXi/E//VM5Cf3/dFmA+3CZ0c=
 github.com/beorn7/perks v1.0.1 h1:VlbKKnNfV8bJzeqoa4cOKqO6bYr3WgKZxO8Z16+hsOM=
@@ -302,8 +304,8 @@ github.com/fluxcd/pkg/apis/kustomize v1.16.0 h1:PhWXEhqQqsisIpwp1/wHvTvo+MO+GGzs
 github.com/fluxcd/pkg/apis/kustomize v1.16.0/go.mod h1:IZOy4CCtR/hxMGb7erK1RfbGnczVv4/dRBoVD37AywI=
 github.com/fluxcd/pkg/apis/meta v1.26.0 h1:dxP1FfBpTCYso6odzRcltVnnRuBb2VyhhgV0VX9YbUE=
 github.com/fluxcd/pkg/apis/meta v1.26.0/go.mod h1:c7o6mJGLCMvNrfdinGZehkrdZuFT9vZdZNrn66DtVD0=
-github.com/fluxcd/pkg/auth v0.40.0 h1:p6Kw6KH+z8oRqngKhmTt8ILKD/rC+8tP87a//kLZhi8=
-github.com/fluxcd/pkg/auth v0.40.0/go.mod h1:Oq/hIEKUMTbL2bv5blf+EhC/jXXJLsOjIMtJj/AtG3Y=
+github.com/fluxcd/pkg/auth v0.41.0 h1:7NaaPN03ginRUUA928n7hiRJoBoMrF/Prl0AtDlLXBQ=
+github.com/fluxcd/pkg/auth v0.41.0/go.mod h1:U9xNHUyxOdPhxRnSW7dwloEF9EMeITxt84g8CD8YB3Q=
 github.com/fluxcd/pkg/cache v0.13.0 h1:MqtlgOwIVcGKKgV422e39O+KFSVMWuExKeRaMDBjJlk=
 github.com/fluxcd/pkg/cache v0.13.0/go.mod h1:0xRZ1hitrIFQ6pl68ke2wZLbIqA2VLzY78HpDo9DVxs=
 github.com/fluxcd/pkg/runtime v0.103.0 h1:J5y5GPhWdkyqIUBlaI1FP2N02TtZmsjbWhhZubuTSFk=
