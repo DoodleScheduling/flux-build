@@ -10,7 +10,7 @@ require (
 	github.com/drone/envsubst v1.0.3
 	github.com/fluxcd/helm-controller/api v1.5.3
 	github.com/fluxcd/pkg/apis/kustomize v1.16.0
-	github.com/fluxcd/pkg/auth v0.40.0
+	github.com/fluxcd/pkg/auth v0.41.0
 	github.com/fluxcd/pkg/runtime v0.103.0
 	github.com/fluxcd/pkg/version v0.14.0
 	github.com/fluxcd/source-controller/api v1.8.2
@@ -103,6 +103,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/ssooidc v1.35.19 // indirect
 	github.com/aws/aws-sdk-go-v2/service/sts v1.41.10 // indirect
 	github.com/aws/smithy-go v1.24.3 // indirect
+	github.com/aws/smithy-go/aws-http-auth v1.1.3 // indirect
 	github.com/awslabs/amazon-ecr-credential-helper/ecr-login v0.12.0 // indirect
 	github.com/beorn7/perks v1.0.1 // indirect
 	github.com/blang/semver v3.5.1+incompatible // indirect
