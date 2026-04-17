@@ -276,6 +276,7 @@ func (h *Helm) renderRelease(ctx context.Context, hr helmv2.HelmRelease, values 
 	client.Timeout = install.GetTimeout(hr.GetTimeout()).Duration
 	client.DisableHooks = install.DisableHooks
 	client.DisableOpenAPIValidation = install.DisableOpenAPIValidation
+	client.SkipSchemaValidation = install.DisableSchemaValidation
 	client.Devel = true
 	client.EnableDNS = true
 
