@@ -6,10 +6,9 @@ metadata:
 spec:
   chart:
     spec:
-      chart: podinfo
-      version: 6.3.5
+      chart: ./charts/podinfo
       sourceRef:
-        kind: HelmRepository
+        kind: GitRepository
         name: podinfo
         namespace: flux-system
   interval: 15m
