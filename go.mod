@@ -9,7 +9,7 @@ require (
 	github.com/docker/cli v29.4.1+incompatible
 	github.com/drone/envsubst v1.0.3
 	github.com/fluxcd/helm-controller/api v1.5.4
-	github.com/fluxcd/pkg/apis/kustomize v1.16.0
+	github.com/fluxcd/pkg/apis/kustomize v1.17.0
 	github.com/fluxcd/pkg/auth v0.41.0
 	github.com/fluxcd/pkg/runtime v0.103.0
 	github.com/fluxcd/pkg/version v0.14.0
