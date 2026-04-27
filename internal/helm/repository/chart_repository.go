@@ -91,6 +91,9 @@ func IndexFromBytes(b []byte) (*repo.IndexFile, error) {
 				cvs = append(cvs[:idx], cvs[idx+1:]...)
 				continue
 			}
+			if cvs[idx].Name == "" {
+				cvs[idx].Name = key
+			}
 			if cvs[idx].APIVersion == "" {
 				cvs[idx].APIVersion = chart.APIVersionV1
 			}
