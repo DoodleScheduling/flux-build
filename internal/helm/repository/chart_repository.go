@@ -64,6 +64,7 @@ func IndexFromFile(path string) (*repo.IndexFile, error) {
 	if err != nil {
 		return nil, err
 	}
+
 	return IndexFromBytes(b)
 }
 
@@ -84,10 +85,14 @@ func IndexFromBytes(b []byte) (*repo.IndexFile, error) {
 		return nil, repo.ErrNoAPIVersion
 	}
 
-	for _, cvs := range i.Entries {
+	for key, cvs := range i.Entries {
 		for idx := len(cvs) - 1; idx >= 0; idx-- {
-			if cvs[idx] == nil {
+			if cvs[idx] == nil || cvs[idx].Metadata == nil {
+				cvs = append(cvs[:idx], cvs[idx+1:]...)
 				continue
+			}
+			if cvs[idx].Name == "" {
+				cvs[idx].Name = key
 			}
 			if cvs[idx].APIVersion == "" {
 				cvs[idx].APIVersion = chart.APIVersionV1
@@ -96,6 +101,7 @@ func IndexFromBytes(b []byte) (*repo.IndexFile, error) {
 				cvs = append(cvs[:idx], cvs[idx+1:]...)
 			}
 		}
+		i.Entries[key] = cvs
 	}
 
 	i.SortEntries()
