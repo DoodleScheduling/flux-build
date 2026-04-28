@@ -304,8 +304,8 @@ github.com/fluxcd/pkg/apis/kustomize v1.17.0 h1:xINP8vW0c6Iz99AFzNX5gFkb8I2QYVCz
 github.com/fluxcd/pkg/apis/kustomize v1.17.0/go.mod h1:IZOy4CCtR/hxMGb7erK1RfbGnczVv4/dRBoVD37AywI=
 github.com/fluxcd/pkg/apis/meta v1.26.0 h1:dxP1FfBpTCYso6odzRcltVnnRuBb2VyhhgV0VX9YbUE=
 github.com/fluxcd/pkg/apis/meta v1.26.0/go.mod h1:c7o6mJGLCMvNrfdinGZehkrdZuFT9vZdZNrn66DtVD0=
-github.com/fluxcd/pkg/auth v0.41.0 h1:7NaaPN03ginRUUA928n7hiRJoBoMrF/Prl0AtDlLXBQ=
-github.com/fluxcd/pkg/auth v0.41.0/go.mod h1:U9xNHUyxOdPhxRnSW7dwloEF9EMeITxt84g8CD8YB3Q=
+github.com/fluxcd/pkg/auth v0.42.0 h1:RniHLAvp/Ykrxxu9Y9acMSmOR/7HvncJrXfihql7OIU=
+github.com/fluxcd/pkg/auth v0.42.0/go.mod h1:U9xNHUyxOdPhxRnSW7dwloEF9EMeITxt84g8CD8YB3Q=
 github.com/fluxcd/pkg/cache v0.13.0 h1:MqtlgOwIVcGKKgV422e39O+KFSVMWuExKeRaMDBjJlk=
 github.com/fluxcd/pkg/cache v0.13.0/go.mod h1:0xRZ1hitrIFQ6pl68ke2wZLbIqA2VLzY78HpDo9DVxs=
 github.com/fluxcd/pkg/runtime v0.105.0 h1:XdcPHhcwWzgqKxN2QtCPeoRaHk+aL2tCt+cjZdYrJGI=
