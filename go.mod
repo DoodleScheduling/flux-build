@@ -10,7 +10,7 @@ require (
 	github.com/drone/envsubst v1.0.3
 	github.com/fluxcd/helm-controller/api v1.5.4
 	github.com/fluxcd/pkg/apis/kustomize v1.18.0
-	github.com/fluxcd/pkg/auth v0.42.0
+	github.com/fluxcd/pkg/auth v0.43.0
 	github.com/fluxcd/pkg/runtime v0.106.0
 	github.com/fluxcd/pkg/version v0.14.0
 	github.com/fluxcd/source-controller/api v1.8.3
@@ -52,7 +52,7 @@ require (
 	github.com/AliyunContainerService/ack-ram-tool/pkg/credentials/provider v0.20.0 // indirect
 	github.com/AliyunContainerService/ack-ram-tool/pkg/ecsmetadata v0.0.10 // indirect
 	github.com/Azure/azure-sdk-for-go v68.0.0+incompatible // indirect
-	github.com/Azure/azure-sdk-for-go/sdk/azcore v1.21.0 // indirect
+	github.com/Azure/azure-sdk-for-go/sdk/azcore v1.21.1 // indirect
 	github.com/Azure/azure-sdk-for-go/sdk/azidentity v1.13.1 // indirect
 	github.com/Azure/azure-sdk-for-go/sdk/containers/azcontainerregistry v0.2.3 // indirect
 	github.com/Azure/azure-sdk-for-go/sdk/internal v1.12.0 // indirect
@@ -86,23 +86,23 @@ require (
 	github.com/alibabacloud-go/tea-xml v1.1.3 // indirect
 	github.com/aliyun/credentials-go v1.4.12 // indirect
 	github.com/asaskevich/govalidator v0.0.0-20230301143203-a9d515a09cc2 // indirect
-	github.com/aws/aws-sdk-go-v2 v1.41.5 // indirect
-	github.com/aws/aws-sdk-go-v2/config v1.32.14 // indirect
-	github.com/aws/aws-sdk-go-v2/credentials v1.19.14 // indirect
-	github.com/aws/aws-sdk-go-v2/feature/ec2/imds v1.18.21 // indirect
-	github.com/aws/aws-sdk-go-v2/internal/configsources v1.4.21 // indirect
-	github.com/aws/aws-sdk-go-v2/internal/endpoints/v2 v2.7.21 // indirect
-	github.com/aws/aws-sdk-go-v2/internal/ini v1.8.6 // indirect
-	github.com/aws/aws-sdk-go-v2/service/ecr v1.57.0 // indirect
-	github.com/aws/aws-sdk-go-v2/service/ecrpublic v1.38.13 // indirect
-	github.com/aws/aws-sdk-go-v2/service/eks v1.82.0 // indirect
-	github.com/aws/aws-sdk-go-v2/service/internal/accept-encoding v1.13.7 // indirect
-	github.com/aws/aws-sdk-go-v2/service/internal/presigned-url v1.13.21 // indirect
-	github.com/aws/aws-sdk-go-v2/service/signin v1.0.9 // indirect
-	github.com/aws/aws-sdk-go-v2/service/sso v1.30.15 // indirect
-	github.com/aws/aws-sdk-go-v2/service/ssooidc v1.35.19 // indirect
-	github.com/aws/aws-sdk-go-v2/service/sts v1.41.10 // indirect
-	github.com/aws/smithy-go v1.24.3 // indirect
+	github.com/aws/aws-sdk-go-v2 v1.41.7 // indirect
+	github.com/aws/aws-sdk-go-v2/config v1.32.17 // indirect
+	github.com/aws/aws-sdk-go-v2/credentials v1.19.16 // indirect
+	github.com/aws/aws-sdk-go-v2/feature/ec2/imds v1.18.23 // indirect
+	github.com/aws/aws-sdk-go-v2/internal/configsources v1.4.23 // indirect
+	github.com/aws/aws-sdk-go-v2/internal/endpoints/v2 v2.7.23 // indirect
+	github.com/aws/aws-sdk-go-v2/internal/v4a v1.4.24 // indirect
+	github.com/aws/aws-sdk-go-v2/service/ecr v1.57.2 // indirect
+	github.com/aws/aws-sdk-go-v2/service/ecrpublic v1.38.15 // indirect
+	github.com/aws/aws-sdk-go-v2/service/eks v1.83.0 // indirect
+	github.com/aws/aws-sdk-go-v2/service/internal/accept-encoding v1.13.9 // indirect
+	github.com/aws/aws-sdk-go-v2/service/internal/presigned-url v1.13.23 // indirect
+	github.com/aws/aws-sdk-go-v2/service/signin v1.0.11 // indirect
+	github.com/aws/aws-sdk-go-v2/service/sso v1.30.17 // indirect
+	github.com/aws/aws-sdk-go-v2/service/ssooidc v1.35.21 // indirect
+	github.com/aws/aws-sdk-go-v2/service/sts v1.42.1 // indirect
+	github.com/aws/smithy-go v1.25.1 // indirect
 	github.com/aws/smithy-go/aws-http-auth v1.1.3 // indirect
 	github.com/awslabs/amazon-ecr-credential-helper/ecr-login v0.12.0 // indirect
 	github.com/beorn7/perks v1.0.1 // indirect
@@ -136,7 +136,7 @@ require (
 	github.com/felixge/httpsnoop v1.0.4 // indirect
 	github.com/fluxcd/pkg/apis/acl v0.10.0 // indirect
 	github.com/fluxcd/pkg/apis/meta v1.27.0 // indirect
-	github.com/fluxcd/pkg/cache v0.13.0 // indirect
+	github.com/fluxcd/pkg/cache v0.14.0 // indirect
 	github.com/fsnotify/fsnotify v1.9.0 // indirect
 	github.com/fxamacker/cbor/v2 v2.9.1 // indirect
 	github.com/ghodss/yaml v1.0.0 // indirect
@@ -179,8 +179,8 @@ require (
 	github.com/google/go-querystring v1.2.0 // indirect
 	github.com/google/s2a-go v0.1.9 // indirect
 	github.com/google/uuid v1.6.0 // indirect
-	github.com/googleapis/enterprise-certificate-proxy v0.3.14 // indirect
-	github.com/googleapis/gax-go/v2 v2.21.0 // indirect
+	github.com/googleapis/enterprise-certificate-proxy v0.3.15 // indirect
+	github.com/googleapis/gax-go/v2 v2.22.0 // indirect
 	github.com/gosuri/uitable v0.0.4 // indirect
 	github.com/grpc-ecosystem/grpc-gateway/v2 v2.28.0 // indirect
 	github.com/hashicorp/errwrap v1.1.0 // indirect
@@ -278,9 +278,9 @@ require (
 	golang.org/x/term v0.42.0 // indirect
 	golang.org/x/text v0.36.0 // indirect
 	golang.org/x/time v0.15.0 // indirect
-	google.golang.org/api v0.275.0 // indirect
+	google.golang.org/api v0.278.0 // indirect
 	google.golang.org/genproto/googleapis/api v0.0.0-20260406210006-6f92a3bedf2d // indirect
-	google.golang.org/genproto/googleapis/rpc v0.0.0-20260406210006-6f92a3bedf2d // indirect
+	google.golang.org/genproto/googleapis/rpc v0.0.0-20260427160629-7cedc36a6bc4 // indirect
 	google.golang.org/grpc v1.80.0 // indirect
 	google.golang.org/protobuf v1.36.12-0.20260120151049-f2248ac996af // indirect
 	gopkg.in/evanphx/json-patch.v4 v4.13.0 // indirect
@@ -288,7 +288,6 @@ require (
 	gopkg.in/ini.v1 v1.67.1 // indirect
 	gopkg.in/yaml.v2 v2.4.0 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
-	gotest.tools/v3 v3.4.0 // indirect
 	k8s.io/apiextensions-apiserver v0.36.0 // indirect
 	k8s.io/apiserver v0.36.0 // indirect
 	k8s.io/cli-runtime v0.36.0 // indirect
