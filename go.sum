@@ -306,8 +306,8 @@ github.com/fluxcd/pkg/auth v0.48.0 h1:9NM39T0tmNcXzaHTq/G7MFp9UGEAzgwrlg8kNaReL2
 github.com/fluxcd/pkg/auth v0.48.0/go.mod h1:fXzYmOvcWVzJwJ4iPFHYUJ1PvEqs221JIBcV2lhr/i4=
 github.com/fluxcd/pkg/cache v0.14.0 h1:wEwJA8NhYj+nH9P6ifcsglDZARWlcbxbmwngGOzfU4c=
 github.com/fluxcd/pkg/cache v0.14.0/go.mod h1:KwzU2gyVQ83YOHJsbBeveJ0HsXmLrH0I668zX19d/+s=
-github.com/fluxcd/pkg/runtime v0.106.0 h1:SGzUaO/G6bUBLkZIxLGnCVEEURSPuldSG2exYjlrsQk=
-github.com/fluxcd/pkg/runtime v0.106.0/go.mod h1:7lCogUwTGKoG3bfBvCn6eQgPYF7cvVp5R+gL3bB1HX8=
+github.com/fluxcd/pkg/runtime v0.107.0 h1:9ftRXphrkwh+6UeihP0e6yuLF5FCKGeIhOd+kmLfZVc=
+github.com/fluxcd/pkg/runtime v0.107.0/go.mod h1:GG4Qvi86pTgw63/BvlvCgKInUiLXYZuRpu3WhwB1WfQ=
 github.com/fluxcd/pkg/version v0.15.0 h1:E2Ju4i0vj8ZXLHKz/F4a8JTmDh7Jcg8okB0hK5rEoTM=
 github.com/fluxcd/pkg/version v0.15.0/go.mod h1:LEHnvLMgbTk4kelF+JHHzaG77kY9uTWodMtadPRMEW8=
 github.com/fluxcd/source-controller/api v1.8.5 h1:mLKc9YVMk46JCt1BQbkG6irkrpBZp95kiXh2+GYB6KQ=
