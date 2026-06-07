@@ -10,7 +10,7 @@ require (
 	github.com/drone/envsubst v1.0.3
 	github.com/fluxcd/helm-controller/api v1.5.5
 	github.com/fluxcd/pkg/apis/kustomize v1.18.0
-	github.com/fluxcd/pkg/auth v0.49.0
+	github.com/fluxcd/pkg/auth v0.50.0
 	github.com/fluxcd/pkg/runtime v0.107.0
 	github.com/fluxcd/pkg/version v0.15.0
 	github.com/fluxcd/source-controller/api v1.8.5
@@ -134,7 +134,7 @@ require (
 	github.com/fatih/color v1.19.0 // indirect
 	github.com/felixge/httpsnoop v1.0.4 // indirect
 	github.com/fluxcd/pkg/apis/acl v0.10.0 // indirect
-	github.com/fluxcd/pkg/apis/meta v1.28.0 // indirect
+	github.com/fluxcd/pkg/apis/meta v1.29.0 // indirect
 	github.com/fluxcd/pkg/cache v0.14.0 // indirect
 	github.com/fsnotify/fsnotify v1.9.0 // indirect
 	github.com/fxamacker/cbor/v2 v2.9.1 // indirect
