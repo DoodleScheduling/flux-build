@@ -871,7 +871,7 @@ func (h *Helm) getGitRepositorySecret(repository *sourcev1beta2.GitRepository, d
 	if secret, ok := db[lookupRef]; ok {
 		raw, err := secret.AsYAML()
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("cannot get YAML of secret `%s`: %w", lookupRef, err)
 		}
 
 		obj, _, err := h.opts.Decoder.Decode(raw, nil, nil)
