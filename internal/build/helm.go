@@ -797,7 +797,7 @@ func (h *Helm) buildFromGitRepository(ctx context.Context, obj *sourcev1beta2.He
 	var auth *http.BasicAuth
 	if secret, err := h.getGitRepositorySecret(repo, db); secret != nil || err != nil {
 		if err != nil {
-			return err
+			return fmt.Errorf("cannot get git repository secret: %w", err)
 		}
 		// Configure git credentials from secret if provided
 		auth, err = h.configureGitAuth(secret)
