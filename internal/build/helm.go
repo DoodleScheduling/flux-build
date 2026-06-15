@@ -876,7 +876,7 @@ func (h *Helm) getGitRepositorySecret(repository *sourcev1beta2.GitRepository, d
 
 		obj, _, err := h.opts.Decoder.Decode(raw, nil, nil)
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("cannot decode secret `%s`: %w", lookupRef, err)
 		}
 
 		return obj.(*corev1.Secret), nil
