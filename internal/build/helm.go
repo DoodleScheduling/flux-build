@@ -842,7 +842,7 @@ func (h *Helm) buildFromGitRepository(ctx context.Context, obj *sourcev1beta2.He
 	// Build the chart using the local builder
 	build, err := cb.Build(ctx, localRef, path, opts)
 	if err != nil {
-		return err
+		return fmt.Errorf("cannot build helm chart: %w", err)
 	}
 
 	if uncachedChart {
