@@ -12,7 +12,7 @@ require (
 	github.com/fluxcd/pkg/apis/kustomize v1.19.0
 	github.com/fluxcd/pkg/auth v0.54.0
 	github.com/fluxcd/pkg/runtime v0.110.0
-	github.com/fluxcd/pkg/version v0.15.0
+	github.com/fluxcd/pkg/version v0.16.0
 	github.com/fluxcd/source-controller/api v1.8.5
 	github.com/go-logr/logr v1.4.3
 	github.com/go-logr/zapr v1.3.0
