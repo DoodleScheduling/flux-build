@@ -13,7 +13,7 @@ require (
 	github.com/fluxcd/pkg/auth v0.54.0
 	github.com/fluxcd/pkg/runtime v0.110.0
 	github.com/fluxcd/pkg/version v0.16.0
-	github.com/fluxcd/source-controller/api v1.8.5
+	github.com/fluxcd/source-controller/api v1.9.0
 	github.com/go-logr/logr v1.4.3
 	github.com/go-logr/zapr v1.3.0
 	github.com/gofrs/flock v0.13.0
@@ -137,7 +137,7 @@ require (
 	github.com/fluxcd/pkg/apis/meta v1.30.0 // indirect
 	github.com/fluxcd/pkg/cache v0.14.0 // indirect
 	github.com/fsnotify/fsnotify v1.9.0 // indirect
-	github.com/fxamacker/cbor/v2 v2.9.1 // indirect
+	github.com/fxamacker/cbor/v2 v2.9.2 // indirect
 	github.com/ghodss/yaml v1.0.0 // indirect
 	github.com/go-chi/chi/v5 v5.2.5 // indirect
 	github.com/go-errors/errors v1.5.1 // indirect
@@ -292,13 +292,13 @@ require (
 	k8s.io/client-go v0.36.1 // indirect
 	k8s.io/component-base v0.36.1 // indirect
 	k8s.io/klog/v2 v2.140.0 // indirect
-	k8s.io/kube-openapi v0.0.0-20260330154417-16be699c7b31 // indirect
+	k8s.io/kube-openapi v0.0.0-20260603220949-865597e52e25 // indirect
 	k8s.io/kubectl v0.36.1 // indirect
-	k8s.io/utils v0.0.0-20260319190234-28399d86e0b5 // indirect
+	k8s.io/utils v0.0.0-20260507154919-ff6756f316d2 // indirect
 	oras.land/oras-go/v2 v2.6.1 // indirect
 	sigs.k8s.io/controller-runtime v0.24.1 // indirect
 	sigs.k8s.io/json v0.0.0-20250730193827-2d320260d730 // indirect
 	sigs.k8s.io/randfill v1.0.0 // indirect
 	sigs.k8s.io/release-utils v0.12.4 // indirect
-	sigs.k8s.io/structured-merge-diff/v6 v6.3.2 // indirect
+	sigs.k8s.io/structured-merge-diff/v6 v6.4.0 // indirect
 )
