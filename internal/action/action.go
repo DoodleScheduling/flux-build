@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"sort"
 	"sync"
 
 	"github.com/alitto/pond/v2"
@@ -15,6 +16,7 @@ import (
 	"github.com/go-logr/logr"
 	"helm.sh/helm/v3/pkg/chartutil"
 	"sigs.k8s.io/kustomize/api/resmap"
+	"sigs.k8s.io/kustomize/api/resource"
 )
 
 type Action struct {
@@ -85,21 +87,16 @@ func (a *Action) Run(ctx context.Context) error {
 		Cache:            a.Cache,
 	})
 
-	submit(helmResultPool, func() {
-		for index := range manifests {
-			y, err := index.AsYaml()
-			if err != nil {
-				a.Logger.Error(err, "failed to encode as yaml")
-				errs <- err
-				continue
-			}
+	var collected []*resource.Resource
 
-			_, err = a.Output.Write(append([]byte("---\n"), y...))
-			if err != nil {
-				a.Logger.Error(err, "failed to write helm manifests to output")
-				errs <- err
-				continue
-			}
+	submit(helmResultPool, func() {
+		// Collect every rendered resource instead of writing it out as it
+		// arrives. The kustomize and helm worker pools complete in a
+		// non-deterministic order, so streaming here reshuffled the document
+		// order on every run even when the input was unchanged. This pool has a
+		// single worker, so appending to collected needs no extra locking.
+		for index := range manifests {
+			collected = append(collected, index.Resources()...)
 		}
 	}, errs, &panicForward)
 
@@ -158,8 +155,52 @@ func (a *Action) Run(ctx context.Context) error {
 	helmPool.StopAndWait()
 	close(manifests)
 	helmResultPool.StopAndWait()
+
+	// Emit the collected resources in a deterministic order (group, version,
+	// kind, namespace, name) so the output is a pure function of the input.
+	// Without this the concurrent pools above yield a different document order
+	// on every run, which produces spurious diffs for consumers that commit the
+	// rendered manifests to git.
+	sort.SliceStable(collected, func(i, j int) bool {
+		return less(collected[i], collected[j])
+	})
+
+	for _, res := range collected {
+		y, err := res.AsYAML()
+		if err != nil {
+			a.Logger.Error(err, "failed to encode as yaml")
+			errs <- err
+			continue
+		}
+
+		if _, err := a.Output.Write(append([]byte("---\n"), y...)); err != nil {
+			a.Logger.Error(err, "failed to write manifests to output")
+			errs <- err
+			continue
+		}
+	}
+
 	panicForward.Wait()
 	close(errs)
 
 	return nil
+}
+
+// less orders resources by group, version, kind, namespace and name, giving a
+// total ordering over the rendered resources so the output stream is stable.
+func less(a, b *resource.Resource) bool {
+	ai, bi := a.CurId(), b.CurId()
+
+	switch {
+	case ai.Group != bi.Group:
+		return ai.Group < bi.Group
+	case ai.Version != bi.Version:
+		return ai.Version < bi.Version
+	case ai.Kind != bi.Kind:
+		return ai.Kind < bi.Kind
+	case ai.Namespace != bi.Namespace:
+		return ai.Namespace < bi.Namespace
+	default:
+		return ai.Name < bi.Name
+	}
 }
