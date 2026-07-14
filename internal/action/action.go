@@ -1,6 +1,7 @@
 package action
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"fmt"
@@ -200,7 +201,15 @@ func less(a, b *resource.Resource) bool {
 		return ai.Kind < bi.Kind
 	case ai.Namespace != bi.Namespace:
 		return ai.Namespace < bi.Namespace
-	default:
+	case ai.Name != bi.Name:
 		return ai.Name < bi.Name
+	default:
+		// Two documents share the same Kubernetes identity (an apply-time
+		// conflict in its own right). Fall back to comparing the rendered
+		// content so the output stays deterministic regardless of the order in
+		// which the concurrent workers produced them.
+		ay, _ := a.AsYAML()
+		by, _ := b.AsYAML()
+		return bytes.Compare(ay, by) < 0
 	}
 }

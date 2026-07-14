@@ -3,6 +3,7 @@ package action
 import (
 	"bytes"
 	"context"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -11,6 +12,7 @@ import (
 	chartcache "github.com/doodlescheduling/flux-build/internal/helm/chart/cache"
 	"github.com/go-logr/logr"
 	"helm.sh/helm/v3/pkg/chartutil"
+	"sigs.k8s.io/yaml"
 )
 
 // manifests are intentionally supplied out of sorted order and spread across
@@ -24,6 +26,11 @@ var testManifests = []struct {
 	{"deploy.yaml", "apiVersion: apps/v1\nkind: Deployment\nmetadata:\n  name: deploy\n  namespace: test\nspec:\n  selector:\n    matchLabels:\n      app: x\n  template:\n    metadata:\n      labels:\n        app: x\n    spec:\n      containers:\n      - name: c\n        image: nginx\n"},
 	{"cm.yaml", "apiVersion: v1\nkind: ConfigMap\nmetadata:\n  name: cm\n  namespace: test\ndata:\n  a: b\n"},
 	{"ns.yaml", "apiVersion: v1\nkind: Namespace\nmetadata:\n  name: ns\n"},
+	// A ConfigMap in a namespace that sorts before "test" exercises the
+	// namespace comparison; a second ConfigMap in "test" whose name sorts
+	// before "cm" exercises the name comparison in less.
+	{"cm-other-ns.yaml", "apiVersion: v1\nkind: ConfigMap\nmetadata:\n  name: z-cm\n  namespace: alpha\ndata:\n  c: d\n"},
+	{"cm-same-ns.yaml", "apiVersion: v1\nkind: ConfigMap\nmetadata:\n  name: a-cm\n  namespace: test\ndata:\n  e: f\n"},
 }
 
 func buildPaths(t *testing.T) []string {
@@ -66,14 +73,48 @@ func runAction(t *testing.T, paths []string) string {
 	return buf.String()
 }
 
-func kindOrder(out string) []string {
-	var kinds []string
-	for _, line := range strings.Split(out, "\n") {
-		if strings.HasPrefix(line, "kind:") {
-			kinds = append(kinds, strings.TrimSpace(strings.TrimPrefix(line, "kind:")))
+// identities parses the multi-document output stream into an ordered list of
+// "kind/namespace/name" identifiers, so tests can assert the exact emitted
+// order (not just the kinds).
+func identities(t *testing.T, out string) []string {
+	t.Helper()
+
+	var (
+		ids []string
+		cur []string
+	)
+
+	flush := func() {
+		doc := strings.TrimSpace(strings.Join(cur, "\n"))
+		cur = nil
+		if doc == "" {
+			return
 		}
+
+		var m struct {
+			Kind     string `json:"kind"`
+			Metadata struct {
+				Name      string `json:"name"`
+				Namespace string `json:"namespace"`
+			} `json:"metadata"`
+		}
+		if err := yaml.Unmarshal([]byte(doc), &m); err != nil {
+			t.Fatalf("unmarshal document: %v\n%s", err, doc)
+		}
+
+		ids = append(ids, fmt.Sprintf("%s/%s/%s", m.Kind, m.Metadata.Namespace, m.Metadata.Name))
 	}
-	return kinds
+
+	for _, line := range strings.Split(out, "\n") {
+		if line == "---" {
+			flush()
+			continue
+		}
+		cur = append(cur, line)
+	}
+	flush()
+
+	return ids
 }
 
 // TestRunDeterministicOrder verifies the rendered output is byte-identical
@@ -90,9 +131,19 @@ func TestRunDeterministicOrder(t *testing.T) {
 	}
 
 	// Core group ("") sorts before "apps"; within core, kinds sort
-	// alphabetically. Deployment (apps/v1) therefore comes last.
-	want := []string{"ConfigMap", "Namespace", "Service", "Deployment"}
-	got := kindOrder(first)
+	// alphabetically. The three ConfigMaps come first, ordered by namespace
+	// (alpha before test) then name (a-cm before cm), which exercises the
+	// namespace and name comparison branches in less. Deployment (apps/v1)
+	// comes last.
+	want := []string{
+		"ConfigMap/alpha/z-cm",
+		"ConfigMap/test/a-cm",
+		"ConfigMap/test/cm",
+		"Namespace//ns",
+		"Service/test/svc",
+		"Deployment/test/deploy",
+	}
+	got := identities(t, first)
 
 	if len(got) != len(want) {
 		t.Fatalf("expected %d resources, got %d (%v)", len(want), len(got), got)
