@@ -153,6 +153,12 @@ func detectResources(fSys filesys.FileSystem, rf *resource.Factory, base string,
 			}
 			return nil
 		}
+
+		ext := filepath.Ext(normalizedPath)
+		if ext != ".yaml" && ext != ".yml" {
+			return nil
+		}
+
 		fContents, err := fSys.ReadFile(path)
 		if err != nil {
 			return err
