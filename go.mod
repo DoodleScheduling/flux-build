@@ -22,7 +22,7 @@ require (
 	github.com/opencontainers/go-digest v1.0.0
 	github.com/otiai10/copy v1.14.1
 	github.com/sethvargo/go-envconfig v1.3.1
-	github.com/sigstore/cosign/v2 v2.6.3
+	github.com/sigstore/cosign/v2 v2.6.4
 	github.com/sigstore/sigstore v1.10.8
 	github.com/spf13/pflag v1.0.10
 	go.uber.org/zap v1.28.0
