@@ -27,7 +27,7 @@ require (
 	github.com/spf13/pflag v1.0.10
 	go.uber.org/zap v1.28.0
 	golang.org/x/sync v0.22.0
-	helm.sh/helm/v3 v3.21.3
+	helm.sh/helm/v4 v4.2.3
 	k8s.io/api v0.36.2
 	k8s.io/apimachinery v0.36.2
 	k8s.io/helm v2.17.0+incompatible
