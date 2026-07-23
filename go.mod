@@ -14,7 +14,7 @@ require (
 	github.com/fluxcd/pkg/runtime v0.111.0
 	github.com/fluxcd/pkg/version v0.16.0
 	github.com/fluxcd/source-controller/api v1.9.3
-	github.com/go-logr/logr v1.4.3
+	github.com/go-logr/logr v1.4.4
 	github.com/go-logr/zapr v1.3.0
 	github.com/gofrs/flock v0.13.0
 	github.com/google/go-containerregistry v0.21.7
