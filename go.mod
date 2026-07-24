@@ -41,7 +41,7 @@ require (
 replace github.com/opencontainers/go-digest => github.com/opencontainers/go-digest v1.0.1-0.20231025023718-d50d2fec9c98
 
 // Upstream module path rename (ThalesIgnite -> ThalesGroup).
-replace github.com/ThalesIgnite/crypto11 => github.com/ThalesGroup/crypto11 v1.6.2
+replace github.com/ThalesIgnite/crypto11 => github.com/ThalesGroup/crypto11 v1.6.5
 
 require (
 	cloud.google.com/go/auth v0.20.0 // indirect
