@@ -161,23 +161,23 @@ func (h *Helm) Build(ctx context.Context, r *resource.Resource, db map[ref]*reso
 
 	repository, err := h.getRepository(source)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("cannot get repository for helmrelease %s/%s`: %w", hr.GetNamespace(), hr.GetName(), err)
 	}
 
 	chartBuild := &chart.Build{}
 	err = h.buildChart(ctx, repository, *hr, chartBuild, db)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("cannot build chart for helmrelease `%s/%s`: %w", hr.GetNamespace(), hr.GetName(), err)
 	}
 
 	values, err := h.composeValues(ctx, db, *hr)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("cannot compute values for helmrelease `%s/%s`: %w", hr.GetNamespace(), hr.GetName(), err)
 	}
 
 	release, err := h.renderRelease(ctx, *hr, values, chartBuild)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("cannot render helmrelease `%s/%s`: %w", hr.GetNamespace(), hr.GetName(), err)
 	}
 
 	ksDir, err := os.MkdirTemp("", "helmrelease")
