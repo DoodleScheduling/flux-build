@@ -16,7 +16,17 @@ limitations under the License.
 
 package oci
 
-import "github.com/google/go-containerregistry/pkg/authn"
+import (
+	"context"
+	"strings"
+
+	"github.com/google/go-containerregistry/pkg/authn"
+
+	"github.com/fluxcd/pkg/auth"
+	authutils "github.com/fluxcd/pkg/auth/utils"
+
+	sourcev1 "github.com/fluxcd/source-controller/api/v1"
+)
 
 // Anonymous is an authn.AuthConfig that always returns an anonymous
 // authenticator. It is useful for registries that do not require authentication
@@ -27,4 +37,10 @@ type Anonymous authn.AuthConfig
 // Resolve implements authn.Keychain.
 func (a Anonymous) Resolve(_ authn.Resource) (authn.Authenticator, error) {
 	return authn.Anonymous, nil
+}
+
+// OIDCAuth generates the OIDC credential authenticator based on the specified cloud provider.
+func OIDCAuth(ctx context.Context, url, provider string, opts ...auth.Option) (authn.Authenticator, error) {
+	u := strings.TrimPrefix(url, sourcev1.OCIRepositoryPrefix)
+	return authutils.GetArtifactRegistryCredentials(ctx, provider, u, opts...)
 }

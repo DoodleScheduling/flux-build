@@ -25,10 +25,11 @@ import (
 	"regexp"
 	"strings"
 
-	helmchart "helm.sh/helm/v3/pkg/chart"
-	"helm.sh/helm/v3/pkg/chartutil"
+	sourcefs "github.com/fluxcd/pkg/oci"
+	helmchart "helm.sh/helm/v4/pkg/chart/v2"
+	chartutil "helm.sh/helm/v4/pkg/chart/v2/util"
 
-	"github.com/doodlescheduling/flux-build/internal/fs"
+	"github.com/doodlescheduling/flux-build/internal/oci"
 )
 
 // Reference holds information to locate a chart.
@@ -76,26 +77,32 @@ type RemoteReference struct {
 	Version string
 }
 
-// WithEscapedName returns a new RemoteReference with the Name URL-escaped.
-func (r RemoteReference) WithEscapedName() RemoteReference {
-	r.Name = url.PathEscape(r.Name)
-	return r
-}
-
 // Validate returns an error if the RemoteReference does not have
 // a Name set.
 func (r RemoteReference) Validate() error {
 	if r.Name == "" {
 		return fmt.Errorf("no name set for remote chart reference")
 	}
-	name := regexp.MustCompile("^([-a-z0-9]+/?)+$")
+	name := regexp.MustCompile(`^([-a-z0-9]+/?\.?)+$`)
 	if !name.MatchString(r.Name) {
-		return fmt.Errorf("invalid chart name '%s': a valid name must be lower case letters and numbers and MAY be separated with dashes (-) or slashes (/)", r.Name)
+		return fmt.Errorf("invalid chart name '%s': a valid name must be lower case letters and numbers and MAY be separated with dashes (-), slashes (/) or periods (.)", r.Name)
 	}
 	return nil
 }
 
-// Key converts RemoteReference to a string key for caching.
+// WithEscapedName returns a new RemoteReference with the Name URL-escaped.
+//
+// flux-build specific: used by internal/helm/chart/cache to derive a safe
+// on-disk cache key; has no upstream source-controller equivalent.
+func (r RemoteReference) WithEscapedName() RemoteReference {
+	r.Name = url.PathEscape(r.Name)
+	return r
+}
+
+// String converts RemoteReference to a string key for caching.
+//
+// flux-build specific: used by internal/helm/chart/cache; has no upstream
+// source-controller equivalent.
 func (r RemoteReference) String() string {
 	return fmt.Sprintf("%s%%%s", r.Name, r.Version)
 }
@@ -118,6 +125,12 @@ type BuildOptions struct {
 	// ValuesFiles can be set to a list of relative paths, used to compose
 	// and overwrite an alternative default "values.yaml" for the chart.
 	ValuesFiles []string
+	// CachedChartValuesFiles is a list of relative paths that were used to
+	// build the cached chart.
+	CachedChartValuesFiles []string
+	// IgnoreMissingValuesFiles controls whether to silently ignore missing
+	// values files rather than failing.
+	IgnoreMissingValuesFiles bool
 	// CachedChart can be set to the absolute path of a chart stored on
 	// the local filesystem, and is used for simple validation by metadata
 	// comparisons.
@@ -158,6 +171,9 @@ type Build struct {
 	// This can for example be false if ValuesFiles is empty and the chart
 	// source was already packaged.
 	Packaged bool
+	// VerifiedResult indicates the results of verifying the chart.
+	// If no verification was performed, this field should be VerificationResultIgnored.
+	VerifiedResult oci.VerificationResult
 }
 
 // Summary returns a human-readable summary of the Build.
@@ -175,10 +191,10 @@ func (b *Build) Summary() string {
 			action = "packaged"
 		}
 	}
-	_, _ = fmt.Fprintf(&s, "%s '%s' chart with version '%s'", action, b.Name, b.Version)
+	s.WriteString(fmt.Sprintf("%s '%s' chart with version '%s'", action, b.Name, b.Version))
 
 	if len(b.ValuesFiles) > 0 {
-		_, _ = fmt.Fprintf(&s, " and merged values files %v", b.ValuesFiles)
+		s.WriteString(fmt.Sprintf(" and merged values files %v", b.ValuesFiles))
 	}
 
 	return s.String()
@@ -215,13 +231,13 @@ func packageToPath(chart *helmchart.Chart, out string) error {
 	if err != nil {
 		return fmt.Errorf("failed to create temporary directory for chart: %w", err)
 	}
-	defer func() { _ = os.RemoveAll(o) }()
+	defer os.RemoveAll(o)
 
 	p, err := chartutil.Save(chart, o)
 	if err != nil {
 		return fmt.Errorf("failed to package chart: %w", err)
 	}
-	if err = fs.RenameWithFallback(p, out); err != nil {
+	if err = sourcefs.RenameWithFallback(p, out); err != nil {
 		return fmt.Errorf("failed to write chart to file: %w", err)
 	}
 	return nil

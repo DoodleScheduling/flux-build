@@ -22,31 +22,31 @@ import (
 	"crypto/tls"
 	"fmt"
 	"net/url"
-	"os"
 	"path"
 	"sort"
 	"strings"
 
-	"helm.sh/helm/v3/pkg/chart"
-	"helm.sh/helm/v3/pkg/getter"
-	"helm.sh/helm/v3/pkg/registry"
-	"helm.sh/helm/v3/pkg/repo"
+	chart "helm.sh/helm/v4/pkg/chart/v2"
+	"helm.sh/helm/v4/pkg/getter"
+	"helm.sh/helm/v4/pkg/registry"
+	repo "helm.sh/helm/v4/pkg/repo/v1"
 
 	"github.com/Masterminds/semver/v3"
 	"github.com/google/go-containerregistry/pkg/name"
+	ocispec "github.com/opencontainers/image-spec/specs-go/v1"
+
+	"github.com/fluxcd/pkg/http/transport"
+	"github.com/fluxcd/pkg/version"
 
 	"github.com/doodlescheduling/flux-build/internal/oci"
-	"github.com/doodlescheduling/flux-build/internal/transport"
-	"github.com/fluxcd/pkg/version"
 )
 
 // RegistryClient is an interface for interacting with OCI registries
 // It is used by the OCIChartRepository to retrieve chart versions
 // from OCI registries
 type RegistryClient interface {
-	Login(host string, opts ...registry.LoginOption) error
-	Logout(host string, opts ...registry.LogoutOption) error
 	Tags(url string) ([]string, error)
+	Resolve(ref string) (ocispec.Descriptor, error)
 }
 
 // OCIChartRepository represents a Helm chart repository, and the configuration
@@ -65,11 +65,12 @@ type OCIChartRepository struct {
 
 	// RegistryClient is a client to use while downloading tags or charts from a registry.
 	RegistryClient RegistryClient
-	// credentialsFile is a temporary credentials file to use while downloading tags or charts from a registry.
-	credentialsFile string
 
 	// verifiers is a list of verifiers to use when verifying a chart.
 	verifiers []oci.Verifier
+
+	// insecureHTTP indicates that the chart is hosted on an insecure HTTP registry.
+	insecureHTTP bool
 }
 
 // OCIChartRepositoryOption is a function that can be passed to NewOCIChartRepository
@@ -80,6 +81,13 @@ type OCIChartRepositoryOption func(*OCIChartRepository) error
 func WithVerifiers(verifiers []oci.Verifier) OCIChartRepositoryOption {
 	return func(r *OCIChartRepository) error {
 		r.verifiers = verifiers
+		return nil
+	}
+}
+
+func WithInsecureHTTP() OCIChartRepositoryOption {
+	return func(r *OCIChartRepository) error {
+		r.insecureHTTP = true
 		return nil
 	}
 }
@@ -108,14 +116,6 @@ func WithOCIGetter(providers getter.Providers) OCIChartRepositoryOption {
 func WithOCIGetterOptions(getterOpts []getter.Option) OCIChartRepositoryOption {
 	return func(r *OCIChartRepository) error {
 		r.Options = getterOpts
-		return nil
-	}
-}
-
-// WithCredentialsFile returns a ChartRepositoryOption that will set the credentials file
-func WithCredentialsFile(credentialsFile string) OCIChartRepositoryOption {
-	return func(r *OCIChartRepository) error {
-		r.credentialsFile = credentialsFile
 		return nil
 	}
 }
@@ -228,9 +228,7 @@ func (r *OCIChartRepository) DownloadChart(chart *repo.ChartVersion) (*bytes.Buf
 
 	t := transport.NewOrIdle(r.tlsConfig)
 	clientOpts := append(r.Options, getter.WithTransport(t))
-	defer func() {
-		_ = transport.Release(t)
-	}()
+	defer transport.Release(t)
 
 	// trim the oci scheme prefix if needed
 	b, err := r.Client.Get(strings.TrimPrefix(u.String(), fmt.Sprintf("%s://", registry.OCIScheme)), clientOpts...)
@@ -240,40 +238,8 @@ func (r *OCIChartRepository) DownloadChart(chart *repo.ChartVersion) (*bytes.Buf
 	return b, nil
 }
 
-// Login attempts to login to the OCI registry.
-// It returns an error on failure.
-func (r *OCIChartRepository) Login(opts ...registry.LoginOption) error {
-	err := r.RegistryClient.Login(r.URL.Host, opts...)
-	if err != nil {
-		return err
-	}
-	return nil
-}
-
-// Logout attempts to logout from the OCI registry.
-// It returns an error on failure.
-func (r *OCIChartRepository) Logout() error {
-	err := r.RegistryClient.Logout(r.URL.Host)
-	if err != nil {
-		return err
-	}
-	return nil
-}
-
-// HasCredentials returns true if the OCIChartRepository has credentials.
-func (r *OCIChartRepository) HasCredentials() bool {
-	return r.credentialsFile != ""
-}
-
-// Clear deletes the OCI registry credentials file.
+// Clear deletes the OCI registry certificates store.
 func (r *OCIChartRepository) Clear() error {
-	// clean the credentials file if it exists
-	if r.credentialsFile != "" {
-		if err := os.Remove(r.credentialsFile); err != nil {
-			return err
-		}
-	}
-	r.credentialsFile = ""
 	return nil
 }
 
@@ -326,30 +292,57 @@ func getLastMatchingVersionOrConstraint(cvs []string, ver string) (string, error
 }
 
 // VerifyChart verifies the chart against a signature.
-// If no signature is provided, a keyless verification is performed.
-// It returns an error on failure.
-func (r *OCIChartRepository) VerifyChart(ctx context.Context, chart *repo.ChartVersion) error {
+// Supports signature verification using either cosign or notation providers.
+// If no signature is provided, when cosign is used, a keyless verification is performed.
+// The verification result is returned as a VerificationResult and any error encountered.
+func (r *OCIChartRepository) VerifyChart(ctx context.Context, chart *repo.ChartVersion) (oci.VerificationResult, error) {
 	if len(r.verifiers) == 0 {
-		return fmt.Errorf("no verifiers available")
+		return oci.VerificationResultFailed, fmt.Errorf("no verifiers available")
 	}
 
 	if len(chart.URLs) == 0 {
-		return fmt.Errorf("chart '%s' has no downloadable URLs", chart.Name)
+		return oci.VerificationResultFailed, fmt.Errorf("chart '%s' has no downloadable URLs", chart.Name)
 	}
 
-	ref, err := name.ParseReference(strings.TrimPrefix(chart.URLs[0], fmt.Sprintf("%s://", registry.OCIScheme)))
-	if err != nil {
-		return fmt.Errorf("invalid chart reference: %s", err)
+	var nameOpts []name.Option
+	if r.insecureHTTP {
+		nameOpts = append(nameOpts, name.Insecure)
 	}
+
+	ref, err := name.ParseReference(strings.TrimPrefix(chart.URLs[0], fmt.Sprintf("%s://", registry.OCIScheme)), nameOpts...)
+	if err != nil {
+		return oci.VerificationResultFailed, fmt.Errorf("invalid chart reference: %s", err)
+	}
+
+	// Resolve the reference to a digest and pin the chart URL to it,
+	// so verification and download refer to the same content.
+	desc, err := r.RegistryClient.Resolve(ref.String())
+	if err != nil {
+		return oci.VerificationResultFailed, fmt.Errorf("failed to resolve digest for '%s': %w", chart.URLs[0], err)
+	}
+	if err := desc.Digest.Validate(); err != nil {
+		return oci.VerificationResultFailed, fmt.Errorf("invalid digest resolved for '%s': %w", chart.URLs[0], err)
+	}
+	digestRef := ref.Context().Digest(desc.Digest.String())
+	chart.URLs[0] = fmt.Sprintf("%s://%s", registry.OCIScheme, digestRef.String())
+
+	verificationResult := oci.VerificationResultFailed
 
 	// verify the chart
 	for _, verifier := range r.verifiers {
-		if verified, err := verifier.Verify(ctx, ref); err != nil {
-			return fmt.Errorf("failed to verify %s: %w", chart.URLs[0], err)
-		} else if verified {
-			return nil
+		result, err := verifier.Verify(ctx, digestRef)
+		if err != nil {
+			return result, fmt.Errorf("failed to verify %s: %w", chart.URLs[0], err)
 		}
+		if result == oci.VerificationResultSuccess {
+			return result, nil
+		}
+		verificationResult = result
 	}
 
-	return fmt.Errorf("no matching signatures were found for '%s'", ref.Name())
+	if verificationResult == oci.VerificationResultIgnored {
+		return verificationResult, nil
+	}
+
+	return oci.VerificationResultFailed, fmt.Errorf("no matching signatures were found for '%s'", digestRef.Name())
 }

@@ -25,9 +25,9 @@ import (
 
 	. "github.com/onsi/gomega"
 	"github.com/otiai10/copy"
-	helmchart "helm.sh/helm/v3/pkg/chart"
-	"helm.sh/helm/v3/pkg/chartutil"
-	"helm.sh/helm/v3/pkg/repo"
+	"helm.sh/helm/v4/pkg/chart/common"
+	helmchart "helm.sh/helm/v4/pkg/chart/v2"
+	repo "helm.sh/helm/v4/pkg/repo/v1"
 
 	"github.com/doodlescheduling/flux-build/internal/helm/chart/secureloader"
 	"github.com/doodlescheduling/flux-build/internal/helm/repository"
@@ -66,10 +66,10 @@ func TestLocalBuilder_Build(t *testing.T) {
 		name                string
 		reference           Reference
 		buildOpts           BuildOptions
-		valuesFiles         []helmchart.File
+		valuesFiles         []common.File
 		repositories        map[string]repository.Downloader
 		dependentChartPaths []string
-		wantValues          chartutil.Values
+		wantValues          common.Values
 		wantVersion         string
 		wantPackaged        bool
 		wantErr             string
@@ -111,7 +111,7 @@ func TestLocalBuilder_Build(t *testing.T) {
 		{
 			name:      "default values",
 			reference: LocalReference{Path: "../testdata/charts/helmchart"},
-			wantValues: chartutil.Values{
+			wantValues: common.Values{
 				"replicaCount": float64(1),
 			},
 			wantVersion:  "0.1.0",
@@ -123,7 +123,7 @@ func TestLocalBuilder_Build(t *testing.T) {
 			buildOpts: BuildOptions{
 				ValuesFiles: []string{"custom-values1.yaml", "custom-values2.yaml"},
 			},
-			valuesFiles: []helmchart.File{
+			valuesFiles: []common.File{
 				{
 					Name: "custom-values1.yaml",
 					Data: []byte(`replicaCount: 11
@@ -135,7 +135,7 @@ nameOverride: "foo-name-override"`),
 fullnameOverride: "full-foo-name-override"`),
 				},
 			},
-			wantValues: chartutil.Values{
+			wantValues: common.Values{
 				"replicaCount":     float64(20),
 				"nameOverride":     "foo-name-override",
 				"fullnameOverride": "full-foo-name-override",
@@ -156,7 +156,7 @@ fullnameOverride: "full-foo-name-override"`),
 		{
 			name:      "v1 chart",
 			reference: LocalReference{Path: "./../testdata/charts/helmchart-v1"},
-			wantValues: chartutil.Values{
+			wantValues: common.Values{
 				"replicaCount": float64(1),
 			},
 			wantVersion:  "0.2.0",
@@ -281,24 +281,27 @@ func TestLocalBuilder_Build_CachedChart(t *testing.T) {
 
 func Test_mergeFileValues(t *testing.T) {
 	tests := []struct {
-		name    string
-		files   []*helmchart.File
-		paths   []string
-		want    map[string]interface{}
-		wantErr string
+		name          string
+		files         []*common.File
+		paths         []string
+		ignoreMissing bool
+		wantValues    map[string]interface{}
+		wantFiles     []string
+		wantErr       string
 	}{
 		{
 			name: "merges values from files",
-			files: []*helmchart.File{
+			files: []*common.File{
 				{Name: "a.yaml", Data: []byte("a: b")},
 				{Name: "b.yaml", Data: []byte("b: c")},
 				{Name: "c.yaml", Data: []byte("b: d")},
 			},
 			paths: []string{"a.yaml", "b.yaml", "c.yaml"},
-			want: map[string]interface{}{
+			wantValues: map[string]interface{}{
 				"a": "b",
 				"b": "d",
 			},
+			wantFiles: []string{"a.yaml", "b.yaml", "c.yaml"},
 		},
 		{
 			name:    "illegal traverse",
@@ -307,7 +310,7 @@ func Test_mergeFileValues(t *testing.T) {
 		},
 		{
 			name: "unmarshal error",
-			files: []*helmchart.File{
+			files: []*common.File{
 				{Name: "invalid", Data: []byte("abcd")},
 			},
 			paths:   []string{"invalid"},
@@ -317,6 +320,25 @@ func Test_mergeFileValues(t *testing.T) {
 			name:    "error on invalid path",
 			paths:   []string{"a.yaml"},
 			wantErr: "no values file found at path '/a.yaml'",
+		},
+		{
+			name: "ignore missing files",
+			files: []*common.File{
+				{Name: "a.yaml", Data: []byte("a: b")},
+			},
+			paths:         []string{"a.yaml", "b.yaml"},
+			ignoreMissing: true,
+			wantValues: map[string]interface{}{
+				"a": "b",
+			},
+			wantFiles: []string{"a.yaml"},
+		},
+		{
+			name:          "all files missing",
+			paths:         []string{"a.yaml"},
+			ignoreMissing: true,
+			wantValues:    map[string]interface{}{},
+			wantFiles:     []string{},
 		},
 	}
 	for _, tt := range tests {
@@ -329,16 +351,18 @@ func Test_mergeFileValues(t *testing.T) {
 				g.Expect(os.WriteFile(filepath.Join(baseDir, f.Name), f.Data, 0o640)).To(Succeed())
 			}
 
-			got, err := mergeFileValues(baseDir, tt.paths)
+			gotValues, gotFiles, err := mergeFileValues(baseDir, tt.paths, tt.ignoreMissing)
 			if tt.wantErr != "" {
 				g.Expect(err).To(HaveOccurred())
 				g.Expect(err.Error()).To(ContainSubstring(tt.wantErr))
-				g.Expect(got).To(BeNil())
+				g.Expect(gotValues).To(BeNil())
+				g.Expect(gotFiles).To(BeNil())
 				return
 			}
 
 			g.Expect(err).ToNot(HaveOccurred())
-			g.Expect(got).To(Equal(tt.want))
+			g.Expect(gotValues).To(Equal(tt.wantValues))
+			g.Expect(gotFiles).To(Equal(tt.wantFiles))
 		})
 	}
 }
@@ -369,7 +393,7 @@ func Test_copyFileToPath(t *testing.T) {
 			g := NewWithT(t)
 
 			out := tmpFile("copy-0.1.0", ".tgz")
-			defer func() { _ = os.RemoveAll(out) }()
+			defer os.RemoveAll(out)
 			err := copyFileToPath(tt.in, out)
 			if tt.wantErr != "" {
 				g.Expect(err).To(HaveOccurred())

@@ -29,9 +29,9 @@ import (
 
 	. "github.com/onsi/gomega"
 	"github.com/opencontainers/go-digest"
-	"helm.sh/helm/v3/pkg/chart"
-	helmgetter "helm.sh/helm/v3/pkg/getter"
-	"helm.sh/helm/v3/pkg/repo"
+	chart "helm.sh/helm/v4/pkg/chart/v2"
+	helmgetter "helm.sh/helm/v4/pkg/getter"
+	repo "helm.sh/helm/v4/pkg/repo/v1"
 
 	"github.com/doodlescheduling/flux-build/internal/helm"
 )
@@ -39,9 +39,10 @@ import (
 var now = time.Now()
 
 const (
-	testFile            = "../testdata/local-index.yaml"
-	chartmuseumTestFile = "../testdata/chartmuseum-index.yaml"
-	unorderedTestFile   = "../testdata/local-index-unordered.yaml"
+	testFile                = "../testdata/local-index.yaml"
+	chartmuseumTestFile     = "../testdata/chartmuseum-index.yaml"
+	chartmuseumJSONTestFile = "../testdata/chartmuseum-index.json"
+	unorderedTestFile       = "../testdata/local-index-unordered.yaml"
 )
 
 // mockGetter is a simple mocking getter.Getter implementation, returning
@@ -80,6 +81,10 @@ func TestIndexFromFile(t *testing.T) {
 		{
 			name:     "chartmuseum index file",
 			filename: chartmuseumTestFile,
+		},
+		{
+			name:     "chartmuseum json index file",
+			filename: chartmuseumJSONTestFile,
 		},
 		{
 			name:     "error if index size exceeds max size",
@@ -407,6 +412,25 @@ func TestChartRepository_CacheIndex(t *testing.T) {
 	g.Expect(r.digests).To(BeEmpty())
 }
 
+func TestChartRepository_ToJSON(t *testing.T) {
+	g := NewWithT(t)
+
+	r := newChartRepository()
+	r.Path = chartmuseumTestFile
+
+	_, err := r.ToJSON()
+	g.Expect(err).To(HaveOccurred())
+
+	g.Expect(r.LoadFromPath()).To(Succeed())
+	b, err := r.ToJSON()
+	g.Expect(err).ToNot(HaveOccurred())
+
+	jsonBytes, err := os.ReadFile(chartmuseumJSONTestFile)
+	jsonBytes = bytes.TrimRight(jsonBytes, "\n")
+	g.Expect(err).To(Not(HaveOccurred()))
+	g.Expect(string(b)).To(Equal(string(jsonBytes)))
+}
+
 func TestChartRepository_DownloadIndex(t *testing.T) {
 	g := NewWithT(t)
 
@@ -420,11 +444,19 @@ func TestChartRepository_DownloadIndex(t *testing.T) {
 		RWMutex: &sync.RWMutex{},
 	}
 
-	buf := bytes.NewBuffer([]byte{})
-	g.Expect(r.DownloadIndex(buf)).To(Succeed())
-	g.Expect(buf.Bytes()).To(Equal(b))
-	g.Expect(mg.LastCalledURL).To(Equal(r.URL + "/index.yaml"))
-	g.Expect(err).To(BeNil())
+	t.Run("download index", func(t *testing.T) {
+		buf := bytes.NewBuffer([]byte{})
+		g.Expect(r.DownloadIndex(buf, helm.MaxIndexSize)).To(Succeed())
+		g.Expect(buf.Bytes()).To(Equal(b))
+		g.Expect(mg.LastCalledURL).To(Equal(r.URL + "/index.yaml"))
+		g.Expect(err).To(BeNil())
+	})
+
+	t.Run("download index size error", func(t *testing.T) {
+		buf := bytes.NewBuffer([]byte{})
+		g.Expect(r.DownloadIndex(buf, int64(len(b)-1))).To(HaveOccurred())
+		g.Expect(mg.LastCalledURL).To(Equal(r.URL + "/index.yaml"))
+	})
 }
 
 func TestChartRepository_StrategicallyLoadIndex(t *testing.T) {
@@ -432,7 +464,7 @@ func TestChartRepository_StrategicallyLoadIndex(t *testing.T) {
 		g := NewWithT(t)
 
 		i := filepath.Join(t.TempDir(), "index.yaml")
-		g.Expect(os.WriteFile(i, []byte(`apiVersion: v1`), 0o644)).To(Succeed())
+		g.Expect(os.WriteFile(i, []byte(`apiVersion: v1`), 0o600)).To(Succeed())
 
 		r := newChartRepository()
 		r.Path = i
@@ -474,7 +506,7 @@ func TestChartRepository_LoadFromPath(t *testing.T) {
 		g := NewWithT(t)
 
 		i := filepath.Join(t.TempDir(), "index.yaml")
-		g.Expect(os.WriteFile(i, []byte(`apiVersion: v1`), 0o644)).To(Succeed())
+		g.Expect(os.WriteFile(i, []byte(`apiVersion: v1`), 0o600)).To(Succeed())
 
 		r := newChartRepository()
 		r.Path = i
@@ -508,7 +540,7 @@ func TestChartRepository_Digest(t *testing.T) {
 		g := NewWithT(t)
 
 		p := filepath.Join(t.TempDir(), "index.yaml")
-		g.Expect(repo.NewIndexFile().WriteFile(p, 0o644)).To(Succeed())
+		g.Expect(repo.NewIndexFile().WriteFile(p, 0o600)).To(Succeed())
 
 		r := newChartRepository()
 		r.Path = p
@@ -539,7 +571,7 @@ func TestChartRepository_Digest(t *testing.T) {
 		expect := digest.Digest("sha256:fake")
 
 		i := filepath.Join(t.TempDir(), "index.yaml")
-		g.Expect(os.WriteFile(i, []byte(`apiVersion: v1`), 0o644)).To(Succeed())
+		g.Expect(os.WriteFile(i, []byte(`apiVersion: v1`), 0o600)).To(Succeed())
 
 		r := newChartRepository()
 		r.Path = i
@@ -565,7 +597,7 @@ func TestChartRepository_HasFile(t *testing.T) {
 	g.Expect(r.HasFile()).To(BeFalse())
 
 	i := filepath.Join(t.TempDir(), "index.yaml")
-	g.Expect(os.WriteFile(i, []byte(`apiVersion: v1`), 0o644)).To(Succeed())
+	g.Expect(os.WriteFile(i, []byte(`apiVersion: v1`), 0o600)).To(Succeed())
 	r.Path = i
 	g.Expect(r.HasFile()).To(BeTrue())
 }
@@ -640,7 +672,7 @@ func verifyLocalIndex(t *testing.T, i *repo.IndexFile) {
 	g := NewWithT(t)
 
 	g.Expect(i.Entries).ToNot(BeNil())
-	g.Expect(i.Entries).To(HaveLen(3), "expected 3 entries in index file")
+	g.Expect(i.Entries).To(HaveLen(4), "expected 4 entries in index file")
 
 	alpine, ok := i.Entries["alpine"]
 	g.Expect(ok).To(BeTrue(), "expected 'alpine' entry to exist")
@@ -649,6 +681,10 @@ func verifyLocalIndex(t *testing.T, i *repo.IndexFile) {
 	nginx, ok := i.Entries["nginx"]
 	g.Expect(ok).To(BeTrue(), "expected 'nginx' entry to exist")
 	g.Expect(nginx).To(HaveLen(2), "'nginx' should have 2 entries")
+
+	broken, ok := i.Entries["xChartWithDuplicateDependenciesAndMissingAlias"]
+	g.Expect(ok).To(BeTrue(), "expected 'xChartWithDuplicateDependenciesAndMissingAlias' entry to exist")
+	g.Expect(broken).To(HaveLen(1), "'xChartWithDuplicateDependenciesAndMissingAlias' should have 1 entries")
 
 	expects := []*repo.ChartVersion{
 		{
@@ -691,8 +727,24 @@ func verifyLocalIndex(t *testing.T, i *repo.IndexFile) {
 			},
 			Digest: "sha256:1234567890abcdef",
 		},
+		{
+			Metadata: &chart.Metadata{
+				Name:        "xChartWithDuplicateDependenciesAndMissingAlias",
+				Description: "string",
+				Version:     "1.2.3",
+				Keywords:    []string{"broken", "still accepted"},
+				Home:        "https://example.com/something",
+				Dependencies: []*chart.Dependency{
+					{Name: "kube-rbac-proxy", Version: "0.9.1"},
+				},
+			},
+			URLs: []string{
+				"https://kubernetes-charts.storage.googleapis.com/nginx-1.2.3.tgz",
+			},
+			Digest: "sha256:1234567890abcdef",
+		},
 	}
-	tests := []*repo.ChartVersion{alpine[0], nginx[0], nginx[1]}
+	tests := []*repo.ChartVersion{alpine[0], nginx[0], nginx[1], broken[0]}
 
 	for i, tt := range tests {
 		expect := expects[i]
@@ -703,5 +755,153 @@ func verifyLocalIndex(t *testing.T, i *repo.IndexFile) {
 		g.Expect(tt.Home).To(Equal(expect.Home))
 		g.Expect(tt.URLs).To(ContainElements(expect.URLs))
 		g.Expect(tt.Keywords).To(ContainElements(expect.Keywords))
+		g.Expect(tt.Dependencies).To(ContainElements(expect.Dependencies))
+	}
+}
+
+// This code is taken from https://github.com/helm/helm/blob/v3.15.2/pkg/repo/index_test.go#L601
+// and refers to: https://github.com/helm/helm/issues/12748
+func TestIgnoreSkippableChartValidationError(t *testing.T) {
+	type TestCase struct {
+		Input        error
+		ErrorSkipped bool
+	}
+	testCases := map[string]TestCase{
+		"nil": {
+			Input: nil,
+		},
+		"generic_error": {
+			Input: fmt.Errorf("foo"),
+		},
+		"non_skipped_validation_error": {
+			Input: chart.ValidationError("chart.metadata.type must be application or library"),
+		},
+		"skipped_validation_error": {
+			Input:        chart.ValidationErrorf("more than one dependency with name or alias %q", "foo"),
+			ErrorSkipped: true,
+		},
+	}
+
+	for name, tc := range testCases {
+		t.Run(name, func(t *testing.T) {
+			result := ignoreSkippableChartValidationError(tc.Input)
+
+			if tc.Input == nil {
+				if result != nil {
+					t.Error("expected nil result for nil input")
+				}
+				return
+			}
+
+			if tc.ErrorSkipped {
+				if result != nil {
+					t.Error("expected nil result for skipped error")
+				}
+				return
+			}
+
+			if tc.Input != result {
+				t.Error("expected the result equal to input")
+			}
+
+		})
+	}
+}
+
+var indexWithFirstVersionInvalid = `
+apiVersion: v1
+entries:
+  nginx:
+    - urls:
+        - https://charts.helm.sh/stable/alpine-1.0.0.tgz
+        - http://storage2.googleapis.com/kubernetes-charts/alpine-1.0.0.tgz
+      name: nginx
+      version: 0..1.0
+      description: string
+      home: https://github.com/something
+      digest: "sha256:1234567890abcdef"
+    - urls:
+        - https://charts.helm.sh/stable/nginx-0.2.0.tgz
+      name: nginx
+      description: string
+      version: 0.2.0
+      home: https://github.com/something/else
+      digest: "sha256:1234567890abcdef"
+`
+var indexWithEmptyEntries = `
+apiVersion: v1
+entries:
+  nginx:
+    - null
+    - urls:
+        - https://charts.helm.sh/stable/nginx-0.2.0.tgz
+      name: nginx
+      description: string
+      version: 0.2.0
+      home: https://github.com/something/else
+      digest: "sha256:1234567890abcdef"
+    - null
+  alpine:
+    - null
+`
+var indexWithLastVersionInvalid = `
+apiVersion: v1
+entries:
+  nginx:
+    - urls:
+        - https://charts.helm.sh/stable/nginx-0.2.0.tgz
+      name: nginx
+      description: string
+      version: 0.2.0
+      home: https://github.com/something/else
+      digest: "sha256:1234567890abcdef"
+    - urls:
+        - https://charts.helm.sh/stable/alpine-1.0.0.tgz
+        - http://storage2.googleapis.com/kubernetes-charts/alpine-1.0.0.tgz
+      name: nginx
+      version: 0..1.0
+      description: string
+      home: https://github.com/something
+      digest: "sha256:1234567890abcdef"
+`
+
+func TestIndexFromBytes_InvalidEntries(t *testing.T) {
+	tests := []struct {
+		source string
+		data   string
+	}{
+		{
+			source: "indexWithFirstVersionInvalid",
+			data:   indexWithFirstVersionInvalid,
+		},
+		{
+			source: "indexWithLastVersionInvalid",
+			data:   indexWithLastVersionInvalid,
+		},
+		{
+			source: "indexWithEmptyEntries",
+			data:   indexWithEmptyEntries,
+		},
+	}
+	for _, tc := range tests {
+		t.Run(tc.source, func(t *testing.T) {
+			idx, err := IndexFromBytes([]byte(tc.data))
+			if err != nil {
+				t.Fatalf("unexpected error: %s", err)
+			}
+			cvs := idx.Entries["nginx"]
+			if len(cvs) == 0 {
+				t.Error("expected one chart version not to be filtered out")
+			}
+			for _, v := range cvs {
+				if v == nil {
+					t.Error("empty entry was not filtered out")
+					continue
+				}
+				if v.Version == "0..1.0" {
+					t.Error("malformed version was not filtered out")
+				}
+			}
+		})
 	}
 }

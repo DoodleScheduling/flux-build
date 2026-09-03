@@ -21,28 +21,25 @@ import (
 	soci "github.com/doodlescheduling/flux-build/internal/oci"
 	"github.com/drone/envsubst"
 	helmv2 "github.com/fluxcd/helm-controller/api/v2"
-	authaws "github.com/fluxcd/pkg/auth/aws"
-	authazure "github.com/fluxcd/pkg/auth/azure"
-	authgcp "github.com/fluxcd/pkg/auth/gcp"
-	authutils "github.com/fluxcd/pkg/auth/utils"
 	"github.com/fluxcd/pkg/runtime/transform"
-	sourcev1beta2 "github.com/fluxcd/source-controller/api/v1beta2"
+	sourcev1 "github.com/fluxcd/source-controller/api/v1"
 	"github.com/go-logr/logr"
-	"github.com/google/go-containerregistry/pkg/authn"
-	"github.com/google/go-containerregistry/pkg/name"
-	helmaction "helm.sh/helm/v3/pkg/action"
-	"helm.sh/helm/v3/pkg/chart/loader"
-	"helm.sh/helm/v3/pkg/chartutil"
-	helmgetter "helm.sh/helm/v3/pkg/getter"
-	"helm.sh/helm/v3/pkg/postrender"
-	helmreg "helm.sh/helm/v3/pkg/registry"
-	"helm.sh/helm/v3/pkg/release"
+	helmaction "helm.sh/helm/v4/pkg/action"
+	helmcommon "helm.sh/helm/v4/pkg/chart/common"
+	"helm.sh/helm/v4/pkg/chart/loader"
+	helmgetter "helm.sh/helm/v4/pkg/getter"
+	helmpostrenderer "helm.sh/helm/v4/pkg/postrenderer"
+	helmreg "helm.sh/helm/v4/pkg/registry"
+	release "helm.sh/helm/v4/pkg/release/v1"
+	"helm.sh/helm/v4/pkg/strvals"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/runtime/serializer"
 	"k8s.io/apimachinery/pkg/types"
-	"k8s.io/helm/pkg/strvals"
+	"oras.land/oras-go/v2/registry/remote/auth"
+	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 	"sigs.k8s.io/kustomize/api/resmap"
 	"sigs.k8s.io/kustomize/api/resource"
 	"sigs.k8s.io/kustomize/kyaml/resid"
@@ -52,7 +49,7 @@ type HelmOpts struct {
 	APIVersions      []string
 	FailFast         bool
 	Cache            chartcache.Interface
-	KubeVersion      *chartutil.KubeVersion
+	KubeVersion      *helmcommon.KubeVersion
 	Getters          helmgetter.Providers
 	Decoder          runtime.Decoder
 	IncludeHelmHooks bool
@@ -61,10 +58,6 @@ type HelmOpts struct {
 type CacheKey struct {
 	Repo string
 }
-
-// errRegistryAuthOptional indicates cloud auto-login is unavailable (e.g. flux-build
-// running outside EKS/GKE/AKS). Callers may fall back to anonymous OCI pulls.
-var errRegistryAuthOptional = errors.New("cloud registry auto-login not available")
 
 type Helm struct {
 	cache     chartcache.Interface
@@ -90,7 +83,7 @@ func NewHelmBuilder(logger logr.Logger, opts HelmOpts) *Helm {
 	if opts.Decoder == nil {
 		scheme := runtime.NewScheme()
 		_ = helmv2.AddToScheme(scheme)
-		_ = sourcev1beta2.AddToScheme(scheme)
+		_ = sourcev1.AddToScheme(scheme)
 		_ = corev1.AddToScheme(scheme)
 
 		codecFactory := serializer.NewCodecFactory(scheme)
@@ -147,7 +140,7 @@ func (h *Helm) Build(ctx context.Context, r *resource.Resource, db map[ref]*reso
 	}
 	lookupRef := ref{
 		GroupKind: schema.GroupKind{
-			Group: sourcev1beta2.GroupVersion.Group,
+			Group: sourcev1.GroupVersion.Group,
 			Kind:  hr.Spec.Chart.Spec.SourceRef.Kind,
 		},
 		Name:      hr.Spec.Chart.Spec.SourceRef.Name,
@@ -205,9 +198,9 @@ func (h *Helm) Build(ctx context.Context, r *resource.Resource, db map[ref]*reso
 func (h *Helm) getRepository(repository *resource.Resource) (runtime.Object, error) {
 	copy := repository.DeepCopy()
 	copy.SetGvk(resid.Gvk{
-		Group:   sourcev1beta2.GroupVersion.Group,
-		Version: sourcev1beta2.GroupVersion.Version,
-		Kind:    sourcev1beta2.HelmRepositoryKind,
+		Group:   sourcev1.GroupVersion.Group,
+		Version: sourcev1.GroupVersion.Version,
+		Kind:    sourcev1.HelmRepositoryKind,
 	})
 
 	b, err := copy.AsYAML()
@@ -225,11 +218,11 @@ func (h *Helm) getRepository(repository *resource.Resource) (runtime.Object, err
 }
 
 func (h *Helm) buildChart(ctx context.Context, repository runtime.Object, release helmv2.HelmRelease, b *chart.Build, db map[ref]*resource.Resource) error {
-	chart := &sourcev1beta2.HelmChart{
-		Spec: sourcev1beta2.HelmChartSpec{
+	chart := &sourcev1.HelmChart{
+		Spec: sourcev1.HelmChartSpec{
 			Chart:   release.Spec.Chart.Spec.Chart,
 			Version: release.Spec.Chart.Spec.Version,
-			SourceRef: sourcev1beta2.LocalHelmChartSourceReference{
+			SourceRef: sourcev1.LocalHelmChartSourceReference{
 				APIVersion: release.Spec.Chart.Spec.SourceRef.APIVersion,
 				Kind:       release.Spec.Chart.Spec.SourceRef.Kind,
 				Name:       release.Spec.Chart.Spec.SourceRef.Name,
@@ -240,7 +233,7 @@ func (h *Helm) buildChart(ctx context.Context, repository runtime.Object, releas
 	}
 
 	switch repository := repository.(type) {
-	case *sourcev1beta2.HelmRepository:
+	case *sourcev1.HelmRepository:
 		return h.buildFromHelmRepository(ctx, chart, repository, b, db)
 
 	}
@@ -248,8 +241,8 @@ func (h *Helm) buildChart(ctx context.Context, repository runtime.Object, releas
 	return fmt.Errorf("unsupported chart repository `%T`", repository)
 }
 
-func (h *Helm) renderRelease(ctx context.Context, hr helmv2.HelmRelease, values chartutil.Values, b *chart.Build) (*release.Release, error) {
-	chart, err := loader.Load(b.Path)
+func (h *Helm) renderRelease(ctx context.Context, hr helmv2.HelmRelease, values helmcommon.Values, b *chart.Build) (*release.Release, error) {
+	chrt, err := loader.Load(b.Path)
 	if err != nil {
 		return nil, err
 	}
@@ -263,7 +256,9 @@ func (h *Helm) renderRelease(ctx context.Context, hr helmv2.HelmRelease, values 
 	client := helmaction.NewInstall(cfg)
 	client.ReleaseName = hr.GetReleaseName()
 	client.Namespace = ns
-	client.DryRun = true
+	// This is a fully offline, client-only render (equivalent to `helm template`):
+	// no cluster interaction, nothing persisted.
+	client.DryRunStrategy = helmaction.DryRunClient
 
 	install := hr.GetInstall()
 	client.IncludeCRDs = true
@@ -272,7 +267,6 @@ func (h *Helm) renderRelease(ctx context.Context, hr helmv2.HelmRelease, values 
 	}
 
 	client.KubeVersion = h.opts.KubeVersion
-	client.ClientOnly = true
 	client.Timeout = install.GetTimeout(hr.GetTimeout()).Duration
 	client.DisableHooks = install.DisableHooks
 	client.DisableOpenAPIValidation = install.DisableOpenAPIValidation
@@ -280,7 +274,7 @@ func (h *Helm) renderRelease(ctx context.Context, hr helmv2.HelmRelease, values 
 	client.Devel = true
 	client.EnableDNS = true
 
-	apiVersions := chartutil.DefaultVersionSet
+	apiVersions := helmcommon.DefaultVersionSet
 	apiVersions = append(apiVersions, h.opts.APIVersions...)
 	client.APIVersions = apiVersions
 
@@ -301,12 +295,22 @@ func (h *Helm) renderRelease(ctx context.Context, hr helmv2.HelmRelease, values 
 		return nil, err
 	}
 
-	return client.RunWithContext(ctx, chart, values)
+	rel, err := client.RunWithContext(ctx, chrt, values)
+	if err != nil {
+		return nil, err
+	}
+
+	rl, ok := rel.(*release.Release)
+	if !ok {
+		return nil, fmt.Errorf("expected type %T, got %T", &release.Release{}, rel)
+	}
+
+	return rl, nil
 }
 
 // Create post renderer instances from HelmRelease and combine them into
 // a single combined post renderer.
-func (h *Helm) postRenderers(hr helmv2.HelmRelease) (postrender.PostRenderer, error) {
+func (h *Helm) postRenderers(hr helmv2.HelmRelease) (helmpostrenderer.PostRenderer, error) {
 	var combinedRenderer = postrenderer.NewCombinedPostRenderer()
 
 	for _, r := range hr.Spec.PostRenderers {
@@ -344,8 +348,8 @@ func (h *Helm) validateCRDsPolicy(policy helmv2.CRDsPolicy, defaultValue helmv2.
 // composeValues attempts to resolve all ValuesReference resources
 // and merges them as defined. Referenced resources are only retrieved once
 // to ensure a single version is taken into account during the merge.
-func (h *Helm) composeValues(_ context.Context, db map[ref]*resource.Resource, hr helmv2.HelmRelease) (chartutil.Values, error) {
-	result := chartutil.Values{}
+func (h *Helm) composeValues(_ context.Context, db map[ref]*resource.Resource, hr helmv2.HelmRelease) (helmcommon.Values, error) {
+	result := helmcommon.Values{}
 
 	for _, v := range hr.Spec.ValuesFrom {
 		namespacedName := types.NamespacedName{Namespace: hr.Namespace, Name: v.Name}
@@ -405,7 +409,7 @@ func (h *Helm) composeValues(_ context.Context, db map[ref]*resource.Resource, h
 
 		switch v.TargetPath {
 		case "":
-			values, err := chartutil.ReadValues(valuesData)
+			values, err := helmcommon.ReadValues(valuesData)
 			if err != nil {
 				return nil, fmt.Errorf("unable to read values from key '%s' in %s '%s': %w", v.GetValuesKey(), v.Kind, namespacedName, err)
 			}
@@ -435,64 +439,84 @@ func (h *Helm) composeValues(_ context.Context, db map[ref]*resource.Resource, h
 	return transform.MergeMaps(result, hr.GetValues()), nil
 }
 
-func (h *Helm) getHelmRepositorySecret(repository *sourcev1beta2.HelmRepository, db map[ref]*resource.Resource) (*corev1.Secret, error) {
-	if repository.Spec.SecretRef == nil {
-		return nil, nil
-	}
-
+// resolveSecret looks up a Secret by namespace/name in the resolved kustomize
+// resource db (flux-build's static, in-memory stand-in for a live API server)
+// and decodes it. It returns ok=false (no error) when the Secret is simply not
+// present in db, so callers can distinguish "not referenced" from "failed to decode".
+func (h *Helm) resolveSecret(namespace, name string, db map[ref]*resource.Resource) (*corev1.Secret, bool, error) {
 	lookupRef := ref{
 		GroupKind: schema.GroupKind{
 			Group: "",
 			Kind:  "Secret",
 		},
-		Name:      repository.Spec.SecretRef.Name,
-		Namespace: repository.Namespace,
+		Name:      name,
+		Namespace: namespace,
 	}
 
-	if secret, ok := db[lookupRef]; ok {
-		raw, err := secret.AsYAML()
-		if err != nil {
-			return nil, err
-		}
-
-		obj, _, err := h.opts.Decoder.Decode(raw, nil, nil)
-		if err != nil {
-			return nil, err
-		}
-
-		return obj.(*corev1.Secret), nil
+	res, ok := db[lookupRef]
+	if !ok {
+		return nil, false, nil
 	}
 
-	return nil, fmt.Errorf("no repository secret `%v` found for helmrepository %s/%s", lookupRef, repository.Namespace, repository.Name)
+	raw, err := res.AsYAML()
+	if err != nil {
+		return nil, false, err
+	}
+
+	obj, _, err := h.opts.Decoder.Decode(raw, nil, nil)
+	if err != nil {
+		return nil, false, err
+	}
+
+	secret, ok := obj.(*corev1.Secret)
+	if !ok {
+		return nil, false, fmt.Errorf("expected type %T, got %T", corev1.Secret{}, obj)
+	}
+
+	return secret, true, nil
 }
 
-func (h *Helm) clientOptionsFromSecret(secret *corev1.Secret, normalizedURL string) ([]helmgetter.Option, *tls.Config, error) {
-	opts, err := getter.ClientOptionsFromSecret(*secret)
-	if err != nil {
-		return nil, nil, fmt.Errorf("failed to configure Helm client with secret data: %w", err)
+// newRepositoryClient builds a controller-runtime fake client.Client seeded with
+// the Secret(s) referenced by the HelmRepository (SecretRef/CertSecretRef), so that
+// internal/helm/getter.GetClientOpts (which expects a live client.Client to fetch
+// Secrets from a cluster) can be reused unmodified against flux-build's in-memory,
+// statically-resolved resource db.
+func (h *Helm) newRepositoryClient(repo *sourcev1.HelmRepository, db map[ref]*resource.Resource) (client.Client, error) {
+	scheme := runtime.NewScheme()
+	if err := corev1.AddToScheme(scheme); err != nil {
+		return nil, err
 	}
 
-	tlsConfig, err := getter.TLSClientConfigFromSecret(*secret, normalizedURL)
-	if err != nil {
-		return nil, nil, fmt.Errorf("failed to create TLS client config with secret data: %w", err)
+	builder := fake.NewClientBuilder().WithScheme(scheme)
+
+	names := map[string]struct{}{}
+	if repo.Spec.SecretRef != nil {
+		names[repo.Spec.SecretRef.Name] = struct{}{}
+	}
+	if repo.Spec.CertSecretRef != nil {
+		names[repo.Spec.CertSecretRef.Name] = struct{}{}
 	}
 
-	return opts, tlsConfig, nil
+	for name := range names {
+		secret, ok, err := h.resolveSecret(repo.Namespace, name, db)
+		if err != nil {
+			return nil, fmt.Errorf("failed to resolve secret '%s/%s': %w", repo.Namespace, name, err)
+		}
+		if ok {
+			builder = builder.WithObjects(secret)
+		}
+	}
+
+	return builder.Build(), nil
 }
 
 // buildFromHelmRepository attempts to pull and/or package a Helm chart with
-// the specified data from the v1beta2.HelmRepository and v1beta2.HelmChart
+// the specified data from the v1.HelmRepository and v1.HelmChart
 // objects.
-// In case of a failure it records v1beta2.FetchFailedCondition on the chart
+// In case of a failure it records v1.FetchFailedCondition on the chart
 // object, and returns early.
-func (h *Helm) buildFromHelmRepository(ctx context.Context, obj *sourcev1beta2.HelmChart,
-	repo *sourcev1beta2.HelmRepository, b *chart.Build, db map[ref]*resource.Resource) error {
-	var (
-		tlsConfig     *tls.Config
-		authenticator authn.Authenticator
-		keychain      authn.Keychain
-	)
-
+func (h *Helm) buildFromHelmRepository(ctx context.Context, obj *sourcev1.HelmChart,
+	repo *sourcev1.HelmRepository, b *chart.Build, db map[ref]*resource.Resource) error {
 	// Used to login with the repository declared provider
 	ctxTimeout, cancel := context.WithTimeout(ctx, 1*time.Minute)
 	defer cancel()
@@ -528,73 +552,61 @@ func (h *Helm) buildFromHelmRepository(ctx context.Context, obj *sourcev1beta2.H
 	if chartRepo == nil {
 		h.Logger.V(1).Info("using chart repo", "chartrepo", normalizedURL)
 
-		// Construct the Getter options from the HelmRepository data
-		clientOpts := []helmgetter.Option{
+		fakeClient, err := h.newRepositoryClient(repo, db)
+		if err != nil {
+			return err
+		}
+
+		clientOpts, err := getter.GetClientOpts(ctxTimeout, fakeClient, repo, normalizedURL)
+		if err != nil && !errors.Is(err, getter.ErrDeprecatedTLSConfig) {
+			// GetClientOpts eagerly resolves cloud-provider OCI auth (OIDC) when the
+			// HelmRepository declares a Provider but no SecretRef. flux-build may run
+			// outside of any cloud (e.g. locally, in CI), in which case such auth is
+			// expected to be unavailable; fall back to anonymous access instead of
+			// failing the whole build, matching flux-build's previous behavior.
+			if repo.Spec.SecretRef == nil && repo.Spec.Provider != "" && isSkippableCloudRegistryAuthErr(err) {
+				h.Logger.V(1).Info("cloud registry auto-login not available, falling back to anonymous access", "helmrepository", repo.Name, "error", err.Error())
+				anonRepo := repo.DeepCopy()
+				anonRepo.Spec.Provider = ""
+				clientOpts, err = getter.GetClientOpts(ctxTimeout, fakeClient, anonRepo, normalizedURL)
+			}
+
+			if err != nil && !errors.Is(err, getter.ErrDeprecatedTLSConfig) {
+				return fmt.Errorf("failed to configure Helm client with secret data: %w", err)
+			}
+		}
+
+		if err != nil && errors.Is(err, getter.ErrDeprecatedTLSConfig) {
+			h.Logger.V(1).Info("helmrepository uses a deprecated TLS configuration via spec.secretRef, consider migrating to spec.certSecretRef", "helmrepository", repo.Name)
+		}
+
+		var tlsConfig *tls.Config
+		getterOpts := []helmgetter.Option{
 			helmgetter.WithURL(normalizedURL),
 			helmgetter.WithTimeout(1 * time.Minute),
 			helmgetter.WithPassCredentialsAll(repo.Spec.PassCredentials),
 		}
-
-		if secret, err := h.getHelmRepositorySecret(repo, db); secret != nil || err != nil {
-			if err != nil {
-				return err
-			}
-
-			// Build client options from secret
-			opts, tlsCfg, err := h.clientOptionsFromSecret(secret, normalizedURL)
-			if err != nil {
-				return err
-			}
-			clientOpts = append(clientOpts, opts...)
-			tlsConfig = tlsCfg
-
-			// Build registryClient options from secret
-			keychain, err = registry.LoginOptionFromSecret(normalizedURL, *secret)
-			if err != nil {
-				return fmt.Errorf("failed to configure Helm client with secret data: %w", err)
-			}
-		} else if repo.Spec.Provider != sourcev1beta2.GenericOCIProvider && repo.Spec.Type == sourcev1beta2.HelmRepositoryTypeOCI && uncachedChart {
-			auth, authErr := oidcAuth(ctxTimeout, repo.Spec.URL, repo.Spec.Provider)
-			if authErr != nil && !errors.Is(authErr, errRegistryAuthOptional) {
-				return fmt.Errorf("failed to get credential from %s: %w", repo.Spec.Provider, authErr)
-			}
-			if auth != nil {
-				authenticator = auth
-			}
-		}
-
-		var loginOpt helmreg.LoginOption
-		if uncachedChart {
-			loginOpt, err = makeLoginOption(authenticator, keychain, normalizedURL)
-			if err != nil {
-				return err
-			}
+		if clientOpts != nil {
+			getterOpts = clientOpts.GetterOpts
+			tlsConfig = clientOpts.TLSConfig
 		}
 
 		// Initialize the chart repository
 		switch repo.Spec.Type {
-		case sourcev1beta2.HelmRepositoryTypeOCI:
+		case sourcev1.HelmRepositoryTypeOCI:
 			if !helmreg.IsOCI(normalizedURL) {
 				return fmt.Errorf("invalid OCI registry URL: %s", normalizedURL)
 			}
 
-			// with this function call, we create a temporary file to store the credentials if needed.
-			// this is needed because otherwise the credentials are stored in ~/.docker/config.json.
-			// TODO@souleb: remove this once the registry move to Oras v2
-			// or rework to enable reusing credentials to avoid the unneccessary handshake operations
-			registryClient, _, err := registry.ClientGenerator(loginOpt != nil)
+			var ociAuth auth.CredentialFunc
+			if clientOpts != nil {
+				ociAuth = clientOpts.OCIAuth
+			}
+
+			registryClient, err := registry.NewClient(ociAuth, tlsConfig, repo.Spec.Insecure)
 			if err != nil {
 				return fmt.Errorf("failed to construct Helm client: %w", err)
 			}
-
-			/*if credentialsFile != "" {
-				defer func() {
-					if err := os.Remove(credentialsFile); err != nil {
-						//r.eventLogf(ctx, obj, corev1.EventTypeWarning, meta.FailedReason,
-						//		"failed to delete temporary credentials file: %s", err)
-					}
-				}()
-			}*/
 
 			var verifiers []soci.Verifier
 			/*if obj.Spec.Verify != nil {
@@ -609,27 +621,24 @@ func (h *Helm) buildFromHelmRepository(ctx context.Context, obj *sourcev1beta2.H
 			}*/
 
 			// Tell the chart repository to use the OCI client with the configured getter
-			clientOpts = append(clientOpts, helmgetter.WithRegistryClient(registryClient))
-			ociChartRepo, err := repository.NewOCIChartRepository(normalizedURL,
+			getterOpts = append(getterOpts, helmgetter.WithRegistryClient(registryClient))
+			chartRepoOpts := []repository.OCIChartRepositoryOption{
 				repository.WithOCIGetter(h.opts.Getters),
-				repository.WithOCIGetterOptions(clientOpts),
+				repository.WithOCIGetterOptions(getterOpts),
 				repository.WithOCIRegistryClient(registryClient),
-				repository.WithVerifiers(verifiers))
+				repository.WithVerifiers(verifiers),
+			}
+			if repo.Spec.Insecure {
+				chartRepoOpts = append(chartRepoOpts, repository.WithInsecureHTTP())
+			}
+
+			ociChartRepo, err := repository.NewOCIChartRepository(normalizedURL, chartRepoOpts...)
 			if err != nil {
 				return err
 			}
 			chartRepo = ociChartRepo
-
-			// If login options are configured, use them to login to the registry
-			// The OCIGetter will later retrieve the stored credentials to pull the chart
-			if loginOpt != nil {
-				err = ociChartRepo.Login(loginOpt)
-				if err != nil {
-					return fmt.Errorf("failed to login to OCI registry: %w", err)
-				}
-			}
 		default:
-			httpChartRepo, err := repository.NewChartRepository(normalizedURL, os.TempDir(), h.opts.Getters, tlsConfig, clientOpts...)
+			httpChartRepo, err := repository.NewChartRepository(normalizedURL, os.TempDir(), h.opts.Getters, tlsConfig, getterOpts...)
 			if err != nil {
 				return err
 			}
@@ -674,37 +683,6 @@ func (h *Helm) buildFromHelmRepository(ctx context.Context, obj *sourcev1beta2.H
 	return nil
 }
 
-// oidcAuth generates registry credentials using fluxcd/pkg/auth (controller/workload identity).
-func oidcAuth(ctx context.Context, url, provider string) (authn.Authenticator, error) {
-	u := strings.TrimPrefix(url, sourcev1beta2.OCIRepositoryPrefix)
-	if _, err := name.ParseReference(u); err != nil {
-		return nil, fmt.Errorf("failed to parse URL '%s': %w", u, err)
-	}
-
-	var providerName string
-	switch provider {
-	case sourcev1beta2.AmazonOCIProvider:
-		providerName = authaws.ProviderName
-	case sourcev1beta2.AzureOCIProvider:
-		providerName = authazure.ProviderName
-	case sourcev1beta2.GoogleOCIProvider:
-		providerName = authgcp.ProviderName
-	case "":
-		return nil, nil
-	default:
-		return nil, fmt.Errorf("unsupported OCI provider %q", provider)
-	}
-
-	authNZ, err := authutils.GetArtifactRegistryCredentials(ctx, providerName, u)
-	if err != nil {
-		if isSkippableCloudRegistryAuthErr(err) {
-			return nil, errors.Join(errRegistryAuthOptional, err)
-		}
-		return nil, err
-	}
-	return authNZ, nil
-}
-
 func isSkippableCloudRegistryAuthErr(err error) bool {
 	if err == nil {
 		return false
@@ -720,75 +698,3 @@ func isSkippableCloudRegistryAuthErr(err error) bool {
 	}
 	return false
 }
-
-// makeLoginOption returns a registry login option for the given HelmRepository.
-// If the HelmRepository does not specify a secretRef, a nil login option is returned.
-func makeLoginOption(auth authn.Authenticator, keychain authn.Keychain, registryURL string) (helmreg.LoginOption, error) {
-	if auth != nil {
-		return registry.AuthAdaptHelper(auth)
-	}
-
-	if keychain != nil {
-		return registry.KeychainAdaptHelper(keychain)(registryURL)
-	}
-
-	return nil, nil
-}
-
-// makeVerifiers returns a list of verifiers for the given chart.
-/*func (h *Helm) makeVerifiers(ctx context.Context, obj *sourcev1beta2.HelmChart, auth authn.Authenticator, keychain authn.Keychain) ([]soci.Verifier, error) {
-	var verifiers []soci.Verifier
-	verifyOpts := []remote.Option{}
-	if auth != nil {
-		verifyOpts = append(verifyOpts, remote.WithAuth(auth))
-	} else {
-		verifyOpts = append(verifyOpts, remote.WithAuthFromKeychain(keychain))
-	}
-
-	switch obj.Spec.Verify.Provider {
-	case "cosign":
-		defaultCosignOciOpts := []soci.Options{
-			soci.WithRemoteOptions(verifyOpts...),
-		}
-
-		// get the public keys from the given secret
-		if secretRef := obj.Spec.Verify.SecretRef; secretRef != nil {
-			certSecretName := types.NamespacedName{
-				Namespace: obj.Namespace,
-				Name:      secretRef.Name,
-			}
-
-			var pubSecret corev1.Secret
-			if err := h.Get(ctx, certSecretName, &pubSecret); err != nil {
-				return nil, err
-			}
-
-			for k, data := range pubSecret.Data {
-				// search for public keys in the secret
-				if strings.HasSuffix(k, ".pub") {
-					verifier, err := soci.NewCosignVerifier(ctx, append(defaultCosignOciOpts, soci.WithPublicKey(data))...)
-					if err != nil {
-						return nil, err
-					}
-					verifiers = append(verifiers, verifier)
-				}
-			}
-
-			if len(verifiers) == 0 {
-				return nil, fmt.Errorf("no public keys found in secret '%s'", certSecretName)
-			}
-			return verifiers, nil
-		}
-
-		// if no secret is provided, add a keyless verifier
-		verifier, err := soci.NewCosignVerifier(ctx, defaultCosignOciOpts...)
-		if err != nil {
-			return nil, err
-		}
-		verifiers = append(verifiers, verifier)
-		return verifiers, nil
-	default:
-		return nil, fmt.Errorf("unsupported verification provider: %s", obj.Spec.Verify.Provider)
-	}
-}
-*/
