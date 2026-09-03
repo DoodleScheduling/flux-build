@@ -24,7 +24,7 @@ import (
 	"testing"
 
 	. "github.com/onsi/gomega"
-	"helm.sh/helm/v3/pkg/chartutil"
+	chartutil "helm.sh/helm/v4/pkg/chart/v2/util"
 
 	"github.com/doodlescheduling/flux-build/internal/helm/chart/secureloader"
 )
@@ -112,6 +112,15 @@ func TestRemoteReference_Validate(t *testing.T) {
 			name:    "ref with double slash",
 			ref:     RemoteReference{Name: "not//a/valid/chart"},
 			wantErr: "invalid chart name 'not//a/valid/chart'",
+		},
+		{
+			name: "ref with period in name",
+			ref:  RemoteReference{Name: "valid.chart.name"},
+		},
+		{
+			name:    "ref with double period in name",
+			ref:     RemoteReference{Name: "../valid-chart-name"},
+			wantErr: "invalid chart name '../valid-chart-name",
 		},
 	}
 	for _, tt := range tests {
@@ -240,7 +249,7 @@ func Test_packageToPath(t *testing.T) {
 	g.Expect(chart).ToNot(BeNil())
 
 	out := tmpFile("chart-0.1.0", ".tgz")
-	defer func() { _ = os.RemoveAll(out) }()
+	defer os.RemoveAll(out)
 	err = packageToPath(chart, out)
 	g.Expect(err).ToNot(HaveOccurred())
 	g.Expect(out).To(BeARegularFile())
@@ -250,6 +259,6 @@ func Test_packageToPath(t *testing.T) {
 
 func tmpFile(prefix, suffix string) string {
 	randBytes := make([]byte, 16)
-	_, _ = rand.Read(randBytes)
+	rand.Read(randBytes)
 	return filepath.Join(os.TempDir(), prefix+hex.EncodeToString(randBytes)+suffix)
 }

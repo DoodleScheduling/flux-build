@@ -20,6 +20,7 @@ import (
 	"bytes"
 	"context"
 	"crypto/tls"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -27,19 +28,21 @@ import (
 	"os"
 	"path"
 	"sort"
+	"strings"
 	"sync"
 
 	"github.com/Masterminds/semver/v3"
 	"github.com/opencontainers/go-digest"
-	"helm.sh/helm/v3/pkg/chart"
-	"helm.sh/helm/v3/pkg/getter"
-	"helm.sh/helm/v3/pkg/repo"
+	chart "helm.sh/helm/v4/pkg/chart/v2"
+	"helm.sh/helm/v4/pkg/getter"
+	repo "helm.sh/helm/v4/pkg/repo/v1"
 	"sigs.k8s.io/yaml"
 
 	"github.com/fluxcd/pkg/version"
 
+	"github.com/fluxcd/pkg/http/transport"
 	"github.com/doodlescheduling/flux-build/internal/helm"
-	"github.com/doodlescheduling/flux-build/internal/transport"
+	"github.com/doodlescheduling/flux-build/internal/oci"
 )
 
 var (
@@ -64,7 +67,6 @@ func IndexFromFile(path string) (*repo.IndexFile, error) {
 	if err != nil {
 		return nil, err
 	}
-
 	return IndexFromBytes(b)
 }
 
@@ -77,7 +79,7 @@ func IndexFromBytes(b []byte) (*repo.IndexFile, error) {
 	}
 
 	i := &repo.IndexFile{}
-	if err := yaml.UnmarshalStrict(b, i); err != nil {
+	if err := jsonOrYamlUnmarshal(b, i); err != nil {
 		return nil, err
 	}
 
@@ -85,23 +87,25 @@ func IndexFromBytes(b []byte) (*repo.IndexFile, error) {
 		return nil, repo.ErrNoAPIVersion
 	}
 
-	for key, cvs := range i.Entries {
+	for name, cvs := range i.Entries {
 		for idx := len(cvs) - 1; idx >= 0; idx-- {
-			if cvs[idx] == nil || cvs[idx].Metadata == nil {
+			if cvs[idx] == nil {
 				cvs = append(cvs[:idx], cvs[idx+1:]...)
 				continue
 			}
-			if cvs[idx].Name == "" {
-				cvs[idx].Name = key
+			// When metadata section missing, initialize with no data
+			if cvs[idx].Metadata == nil {
+				cvs[idx].Metadata = &chart.Metadata{}
 			}
 			if cvs[idx].APIVersion == "" {
 				cvs[idx].APIVersion = chart.APIVersionV1
 			}
-			if err := cvs[idx].Validate(); err != nil {
+			if err := cvs[idx].Validate(); ignoreSkippableChartValidationError(err) != nil {
 				cvs = append(cvs[:idx], cvs[idx+1:]...)
 			}
 		}
-		i.Entries[key] = cvs
+		// adjust slice to only contain a set of valid versions
+		i.Entries[name] = cvs
 	}
 
 	i.SortEntries()
@@ -281,9 +285,7 @@ func (r *ChartRepository) DownloadChart(chart *repo.ChartVersion) (*bytes.Buffer
 
 	t := transport.NewOrIdle(r.tlsConfig)
 	clientOpts := append(r.Options, getter.WithTransport(t))
-	defer func() {
-		_ = transport.Release(t)
-	}()
+	defer transport.Release(t)
 
 	return r.Client.Get(resolvedUrl, clientOpts...)
 }
@@ -298,13 +300,20 @@ func (r *ChartRepository) CacheIndex() error {
 		return fmt.Errorf("failed to create temp file to cache index to: %w", err)
 	}
 
-	if err = r.DownloadIndex(f); err != nil {
-		_ = f.Close()
-		_ = os.Remove(f.Name())
+	if err = r.DownloadIndex(f, helm.MaxIndexSize); err != nil {
+		f.Close()
+		removeErr := os.Remove(f.Name())
+		if removeErr != nil {
+			err = errors.Join(err, removeErr)
+		}
 		return fmt.Errorf("failed to cache index to temporary file: %w", err)
 	}
+
 	if err = f.Close(); err != nil {
-		_ = os.Remove(f.Name())
+		removeErr := os.Remove(f.Name())
+		if removeErr != nil {
+			err = errors.Join(err, removeErr)
+		}
 		return fmt.Errorf("failed to close cached index file '%s': %w", f.Name(), err)
 	}
 
@@ -361,8 +370,10 @@ func (r *ChartRepository) LoadFromPath() error {
 
 // DownloadIndex attempts to download the chart repository index using
 // the Client and set Options, and writes the index to the given io.Writer.
-// It returns an url.Error if the URL failed to parse.
-func (r *ChartRepository) DownloadIndex(w io.Writer) (err error) {
+// Upon download, the index is copied to the writer if the index size
+// does not exceed the maximum index file size. Otherwise, it returns an error.
+// A url.Error is returned if the URL failed to parse.
+func (r *ChartRepository) DownloadIndex(w io.Writer, maxSize int64) (err error) {
 	r.RLock()
 	defer r.RUnlock()
 
@@ -375,15 +386,18 @@ func (r *ChartRepository) DownloadIndex(w io.Writer) (err error) {
 
 	t := transport.NewOrIdle(r.tlsConfig)
 	clientOpts := append(r.Options, getter.WithTransport(t))
-	defer func() {
-		_ = transport.Release(t)
-	}()
+	defer transport.Release(t)
 
 	var res *bytes.Buffer
 	res, err = r.Client.Get(u.String(), clientOpts...)
 	if err != nil {
 		return err
 	}
+
+	if int64(res.Len()) > maxSize {
+		return fmt.Errorf("index exceeds the maximum index file size of %d bytes", maxSize)
+	}
+
 	if _, err = io.Copy(w, res); err != nil {
 		return err
 	}
@@ -401,7 +415,7 @@ func (r *ChartRepository) Digest(algorithm digest.Algorithm) digest.Digest {
 
 	if _, ok := r.digests[algorithm]; !ok {
 		if f, err := os.Open(r.Path); err == nil {
-			defer func() { _ = f.Close() }()
+			defer f.Close()
 			rd := io.LimitReader(f, helm.MaxIndexSize)
 			if d, err := algorithm.FromReader(rd); err == nil {
 				r.digests[algorithm] = d
@@ -409,6 +423,15 @@ func (r *ChartRepository) Digest(algorithm digest.Algorithm) digest.Digest {
 		}
 	}
 	return r.digests[algorithm]
+}
+
+// ToJSON returns the index formatted as JSON.
+func (r *ChartRepository) ToJSON() ([]byte, error) {
+	if !r.HasIndex() {
+		return nil, fmt.Errorf("index not loaded yet")
+	}
+
+	return json.MarshalIndent(r.Index, "", "  ")
 }
 
 // HasIndex returns true if the Index is not nil.
@@ -465,7 +488,46 @@ func (r *ChartRepository) invalidate() {
 
 // VerifyChart verifies the chart against a signature.
 // It returns an error on failure.
-func (r *ChartRepository) VerifyChart(_ context.Context, _ *repo.ChartVersion) error {
+func (r *ChartRepository) VerifyChart(_ context.Context, _ *repo.ChartVersion) (oci.VerificationResult, error) {
 	// this is a no-op because this is not implemented yet.
-	return fmt.Errorf("not implemented")
+	return oci.VerificationResultIgnored, fmt.Errorf("not implemented")
+}
+
+// jsonOrYamlUnmarshal unmarshals the given byte slice containing JSON or YAML
+// into the provided interface.
+//
+// It automatically detects whether the data is in JSON or YAML format by
+// checking its validity as JSON. If the data is valid JSON, it will use the
+// `encoding/json` package to unmarshal it. Otherwise, it will use the
+// `sigs.k8s.io/yaml` package to unmarshal the YAML data.
+//
+// Can potentially be replaced when Helm PR for JSON support has been merged.
+// xref: https://github.com/helm/helm/pull/12245
+func jsonOrYamlUnmarshal(b []byte, i interface{}) error {
+	if json.Valid(b) {
+		return json.Unmarshal(b, i)
+	}
+	return yaml.UnmarshalStrict(b, i)
+}
+
+// ignoreSkippableChartValidationError inspect the given error and returns nil if
+// the error isn't important for index loading
+//
+// In particular, charts may introduce validations that don't impact repository indexes
+// And repository indexes may be generated by older/non-complient software, which doesn't
+// conform to all validations.
+//
+// this code is taken from https://github.com/helm/helm/blob/v3.15.2/pkg/repo/index.go#L402
+func ignoreSkippableChartValidationError(err error) error {
+	verr, ok := err.(chart.ValidationError)
+	if !ok {
+		return err
+	}
+
+	// https://github.com/helm/helm/issues/12748 (JFrog repository strips alias field from index)
+	if strings.HasPrefix(verr.Error(), "validation: more than one dependency with name or alias") {
+		return nil
+	}
+
+	return err
 }

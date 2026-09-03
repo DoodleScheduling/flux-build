@@ -26,11 +26,10 @@ require (
 	github.com/sigstore/sigstore v1.10.9
 	github.com/spf13/pflag v1.0.10
 	go.uber.org/zap v1.28.0
+	helm.sh/helm/v4 v4.2.1
 	golang.org/x/sync v0.22.0
-	helm.sh/helm/v3 v3.21.4
 	k8s.io/api v0.36.4
 	k8s.io/apimachinery v0.36.4
-	k8s.io/helm v2.17.0+incompatible
 	sigs.k8s.io/kustomize/api v0.21.1
 	sigs.k8s.io/kustomize/kyaml v0.21.1
 	sigs.k8s.io/yaml v1.6.0

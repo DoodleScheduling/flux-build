@@ -29,7 +29,7 @@ import (
 	securejoin "github.com/cyphar/filepath-securejoin"
 	"golang.org/x/sync/errgroup"
 	"golang.org/x/sync/semaphore"
-	helmchart "helm.sh/helm/v3/pkg/chart"
+	helmchart "helm.sh/helm/v4/pkg/chart/v2"
 	"k8s.io/apimachinery/pkg/util/errors"
 
 	"github.com/doodlescheduling/flux-build/internal/helm/chart/secureloader"
@@ -153,11 +153,15 @@ func (dm *DependencyManager) build(ctx context.Context, ref Reference, c *helmch
 		sem := semaphore.NewWeighted(current)
 		c := &chartWithLock{Chart: c}
 		for name, dep := range deps {
-			name, dep := name, dep
 			if err := sem.Acquire(groupCtx, 1); err != nil {
 				return err
 			}
 			group.Go(func() (err error) {
+				defer func() {
+					if r := recover(); r != nil {
+						err = fmt.Errorf("failed to add dependency '%s': %v", name, r)
+					}
+				}()
 				defer sem.Release(1)
 				if isLocalDep(dep) {
 					localRef, ok := ref.(LocalReference)
@@ -296,6 +300,9 @@ func (dm *DependencyManager) resolveRepository(url string) (repo repository.Down
 // It does not allow the dependency's path to be outside the scope of
 // LocalReference.WorkDir.
 func (dm *DependencyManager) secureLocalChartPath(ref LocalReference, dep *helmchart.Dependency) (string, error) {
+	if dep.Repository == "" {
+		return securejoin.SecureJoin(ref.WorkDir, filepath.Join(ref.Path, "charts", dep.Name))
+	}
 	localUrl, err := url.Parse(dep.Repository)
 	if err != nil {
 		return "", fmt.Errorf("failed to parse alleged local chart reference: %w", err)
