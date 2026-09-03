@@ -13,7 +13,7 @@ import (
 	chartcache "github.com/doodlescheduling/flux-build/internal/helm/chart/cache"
 	helmv2 "github.com/fluxcd/helm-controller/api/v2"
 	"github.com/go-logr/logr"
-	"helm.sh/helm/v3/pkg/chartutil"
+	helmcommon "helm.sh/helm/v4/pkg/chart/common"
 	"sigs.k8s.io/kustomize/api/resmap"
 )
 
@@ -26,7 +26,7 @@ type Action struct {
 	Paths            []string
 	APIVersions      []string
 	IncludeHelmHooks bool
-	KubeVersion      *chartutil.KubeVersion
+	KubeVersion      *helmcommon.KubeVersion
 	Logger           logr.Logger
 }
 

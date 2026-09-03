@@ -19,6 +19,7 @@ package chart
 import (
 	"context"
 	"fmt"
+	"net/url"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -87,6 +88,23 @@ func (r RemoteReference) Validate() error {
 		return fmt.Errorf("invalid chart name '%s': a valid name must be lower case letters and numbers and MAY be separated with dashes (-), slashes (/) or periods (.)", r.Name)
 	}
 	return nil
+}
+
+// WithEscapedName returns a new RemoteReference with the Name URL-escaped.
+//
+// flux-build specific: used by internal/helm/chart/cache to derive a safe
+// on-disk cache key; has no upstream source-controller equivalent.
+func (r RemoteReference) WithEscapedName() RemoteReference {
+	r.Name = url.PathEscape(r.Name)
+	return r
+}
+
+// String converts RemoteReference to a string key for caching.
+//
+// flux-build specific: used by internal/helm/chart/cache; has no upstream
+// source-controller equivalent.
+func (r RemoteReference) String() string {
+	return fmt.Sprintf("%s%%%s", r.Name, r.Version)
 }
 
 // Builder is capable of building a (specific) chart Reference.

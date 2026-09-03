@@ -16,7 +16,7 @@ import (
 	"github.com/sethvargo/go-envconfig"
 	flag "github.com/spf13/pflag"
 	"go.uber.org/zap"
-	"helm.sh/helm/v3/pkg/chartutil"
+	helmcommon "helm.sh/helm/v4/pkg/chart/common"
 )
 
 type Config struct {
@@ -84,7 +84,7 @@ func main() {
 	logger, err := buildLogger()
 	must(err)
 
-	kubeVersion := &chartutil.KubeVersion{
+	kubeVersion := &helmcommon.KubeVersion{
 		Major:   "1",
 		Minor:   "31",
 		Version: "1.31.0",
@@ -100,7 +100,7 @@ func main() {
 	}
 
 	if config.KubeVersion != "" {
-		v, err := chartutil.ParseKubeVersion(config.KubeVersion)
+		v, err := helmcommon.ParseKubeVersion(config.KubeVersion)
 		if err != nil {
 			must(err)
 		}
