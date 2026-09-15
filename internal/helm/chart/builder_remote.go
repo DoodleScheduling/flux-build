@@ -25,16 +25,17 @@ import (
 	"path/filepath"
 
 	"github.com/Masterminds/semver/v3"
-	helmchart "helm.sh/helm/v3/pkg/chart"
-	"helm.sh/helm/v3/pkg/chartutil"
-	"helm.sh/helm/v3/pkg/repo"
+	helmchart "helm.sh/helm/v4/pkg/chart/v2"
+	chartutil "helm.sh/helm/v4/pkg/chart/v2/util"
+	repo "helm.sh/helm/v4/pkg/repo/v1"
 	"sigs.k8s.io/yaml"
 
+	sourcefs "github.com/fluxcd/pkg/oci"
 	"github.com/fluxcd/pkg/runtime/transform"
 
-	"github.com/doodlescheduling/flux-build/internal/fs"
 	"github.com/doodlescheduling/flux-build/internal/helm/chart/secureloader"
 	"github.com/doodlescheduling/flux-build/internal/helm/repository"
+	"github.com/doodlescheduling/flux-build/internal/oci"
 )
 
 type remoteChartBuilder struct {
@@ -102,7 +103,7 @@ func (b *remoteChartBuilder) Build(ctx context.Context, ref Reference, p string,
 	}
 	chart.Metadata.Version = result.Version
 
-	mergedValues, err := mergeChartValues(chart, opts.ValuesFiles)
+	mergedValues, valuesFiles, err := mergeChartValues(chart, opts.ValuesFiles, opts.IgnoreMissingValuesFiles)
 	if err != nil {
 		err = fmt.Errorf("failed to merge chart values: %w", err)
 		return result, &BuildError{Reason: ErrValuesFilesMerge, Err: err}
@@ -112,7 +113,7 @@ func (b *remoteChartBuilder) Build(ctx context.Context, ref Reference, p string,
 		if err != nil {
 			return nil, &BuildError{Reason: ErrValuesFilesMerge, Err: err}
 		}
-		result.ValuesFiles = opts.GetValuesFiles()
+		result.ValuesFiles = valuesFiles
 	}
 
 	// Package the chart with the custom values
@@ -141,9 +142,11 @@ func (b *remoteChartBuilder) downloadFromRepository(ctx context.Context, remote 
 		return nil, nil, &BuildError{Reason: reason, Err: err}
 	}
 
+	verifiedResult := oci.VerificationResultIgnored
+
 	// Verify the chart if necessary
 	if opts.Verify {
-		if err := remote.VerifyChart(ctx, cv); err != nil {
+		if verifiedResult, err = remote.VerifyChart(ctx, cv); err != nil {
 			return nil, nil, &BuildError{Reason: ErrChartVerification, Err: err}
 		}
 	}
@@ -152,6 +155,8 @@ func (b *remoteChartBuilder) downloadFromRepository(ctx context.Context, remote 
 	if err != nil {
 		return nil, nil, err
 	}
+
+	result.VerifiedResult = verifiedResult
 
 	if shouldReturn {
 		return nil, result, nil
@@ -173,6 +178,7 @@ func generateBuildResult(cv *repo.ChartVersion, opts BuildOptions) (*Build, bool
 	result := &Build{}
 	result.Version = cv.Version
 	result.Name = cv.Name
+	result.VerifiedResult = oci.VerificationResultIgnored
 
 	// Set build specific metadata if instructed
 	if opts.VersionMetadata != "" {
@@ -197,6 +203,11 @@ func generateBuildResult(cv *repo.ChartVersion, opts BuildOptions) (*Build, bool
 				if result.Name == curMeta.Name && result.Version == curMeta.Version {
 					result.Path = opts.CachedChart
 					result.ValuesFiles = opts.GetValuesFiles()
+					if opts.CachedChartValuesFiles != nil {
+						// If the cached chart values files are set, we should use them
+						// instead of reporting the values files.
+						result.ValuesFiles = opts.CachedChartValuesFiles
+					}
 					result.Packaged = requiresPackaging
 					return result, true, nil
 				}
@@ -220,13 +231,18 @@ func setBuildMetaData(version, versionMetadata string) (*semver.Version, error) 
 }
 
 // mergeChartValues merges the given chart.Chart Files paths into a single "values.yaml" map.
-// It returns the merge result, or an error.
-func mergeChartValues(chart *helmchart.Chart, paths []string) (map[string]interface{}, error) {
+// By default, a missing file is considered an error. If ignoreMissing is set true,
+// missing files are ignored.
+// It returns the merge result and the list of files that contributed to that result,
+// or an error.
+func mergeChartValues(chart *helmchart.Chart, paths []string, ignoreMissing bool) (map[string]interface{}, []string, error) {
 	mergedValues := make(map[string]interface{})
+	valuesFiles := make([]string, 0, len(paths))
 	for _, p := range paths {
 		cfn := filepath.Clean(p)
 		if cfn == chartutil.ValuesfileName {
 			mergedValues = transform.MergeMaps(mergedValues, chart.Values)
+			valuesFiles = append(valuesFiles, p)
 			continue
 		}
 		var b []byte
@@ -237,15 +253,19 @@ func mergeChartValues(chart *helmchart.Chart, paths []string) (map[string]interf
 			}
 		}
 		if b == nil {
-			return nil, fmt.Errorf("no values file found at path '%s'", p)
+			if ignoreMissing {
+				continue
+			}
+			return nil, nil, fmt.Errorf("no values file found at path '%s'", p)
 		}
 		values := make(map[string]interface{})
 		if err := yaml.Unmarshal(b, &values); err != nil {
-			return nil, fmt.Errorf("unmarshaling values from '%s' failed: %w", p, err)
+			return nil, nil, fmt.Errorf("unmarshaling values from '%s' failed: %w", p, err)
 		}
 		mergedValues = transform.MergeMaps(mergedValues, values)
+		valuesFiles = append(valuesFiles, p)
 	}
-	return mergedValues, nil
+	return mergedValues, valuesFiles, nil
 }
 
 // validatePackageAndWriteToPath atomically writes the packaged chart from reader
@@ -255,7 +275,7 @@ func validatePackageAndWriteToPath(reader io.Reader, out string) error {
 	if err != nil {
 		return fmt.Errorf("failed to create temporary file for chart: %w", err)
 	}
-	defer func() { _ = os.Remove(tmpFile.Name()) }()
+	defer os.Remove(tmpFile.Name())
 	if _, err = tmpFile.ReadFrom(reader); err != nil {
 		_ = tmpFile.Close()
 		return fmt.Errorf("failed to write chart to file: %w", err)
@@ -270,7 +290,7 @@ func validatePackageAndWriteToPath(reader io.Reader, out string) error {
 	if err = meta.Validate(); err != nil {
 		return fmt.Errorf("failed to validate metadata of written chart: %w", err)
 	}
-	if err = fs.RenameWithFallback(tmpFile.Name(), out); err != nil {
+	if err = sourcefs.RenameWithFallback(tmpFile.Name(), out); err != nil {
 		return fmt.Errorf("failed to write chart to file: %w", err)
 	}
 	return nil

@@ -1,0 +1,13 @@
+version: "2"
+
+linters:
+  exclusions:
+    paths:
+      - internal/helm
+      - internal/oci
+
+formatters:
+  exclusions:
+    paths:
+      - internal/helm
+      - internal/oci

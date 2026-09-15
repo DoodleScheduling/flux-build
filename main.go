@@ -16,7 +16,7 @@ import (
 	"github.com/sethvargo/go-envconfig"
 	flag "github.com/spf13/pflag"
 	"go.uber.org/zap"
-	"helm.sh/helm/v3/pkg/chartutil"
+	helmcommon "helm.sh/helm/v4/pkg/chart/common"
 )
 
 type Config struct {
@@ -31,7 +31,6 @@ type Config struct {
 	Workers          int      `env:"WORKERS"`
 	APIVersions      []string `env:"API_VERSIONS"`
 	KubeVersion      string   `env:"KUBE_VERSION"`
-	CacheEnabled     bool     `env:"CACHE_ENABLED"`
 	CacheDir         string   `env:"CACHE_DIR"`
 	Cache            string   `env:"CACHE"`
 }
@@ -56,11 +55,11 @@ func init() {
 	flag.BoolVar(&config.AllowFailure, "allow-failure", false, "Do not exit > 0 if an error occurred")
 	flag.BoolVar(&config.IncludeHelmHooks, "include-helm-hooks", false, "Include helm hooks in the output")
 	flag.BoolVar(&config.FailFast, "fail-fast", false, "Exit early if an error occurred")
-	flag.IntVar(&config.Workers, "workers", runtime.NumCPU(), "Workers used to parse manifests")
+	flag.IntVar(&config.Workers, "workers", 0, "Workers used to parse manifests")
 	flag.StringVarP(&config.KubeVersion, "kube-version", "", "", "Kubernetes version (Some helm charts validate manifests against a specific kubernetes version)")
 	flag.StringSliceVarP(&config.APIVersions, "api-versions", "", nil, "Kubernetes api versions used for Capabilities.APIVersions (Comma separated)")
-	flag.StringVar(&config.Cache, "cache", "inmemory", "Which Helm cache to use, one of none, inmemory, fs")
-	flag.StringVar(&config.CacheDir, "cache-dir", getDefaultCacheDir(), "Path to helm chart cache (only used in combination with cache=fs)")
+	flag.StringVar(&config.Cache, "cache", "", "Which Helm cache to use, one of none, inmemory, fs")
+	flag.StringVar(&config.CacheDir, "cache-dir", "", "Path to helm chart cache (only used in combination with cache=fs)")
 }
 
 func must(err error) {
@@ -76,6 +75,13 @@ func main() {
 	}
 
 	flag.Parse()
+	if config.Cache == "" {
+		config.Cache = "inmemory"
+	}
+
+	if config.CacheDir == "" {
+		config.CacheDir = getDefaultCacheDir()
+	}
 
 	if config.Workers < 1 {
 		config.Workers = runtime.NumCPU()
@@ -84,10 +90,10 @@ func main() {
 	logger, err := buildLogger()
 	must(err)
 
-	kubeVersion := &chartutil.KubeVersion{
+	kubeVersion := &helmcommon.KubeVersion{
 		Major:   "1",
-		Minor:   "31",
-		Version: "1.31.0",
+		Minor:   "37",
+		Version: "1.37.0",
 	}
 
 	paths := flag.Args()
@@ -100,7 +106,7 @@ func main() {
 	}
 
 	if config.KubeVersion != "" {
-		v, err := chartutil.ParseKubeVersion(config.KubeVersion)
+		v, err := helmcommon.ParseKubeVersion(config.KubeVersion)
 		if err != nil {
 			must(err)
 		}

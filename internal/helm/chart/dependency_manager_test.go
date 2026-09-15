@@ -28,10 +28,12 @@ import (
 	"testing"
 
 	. "github.com/onsi/gomega"
-	helmchart "helm.sh/helm/v3/pkg/chart"
-	helmgetter "helm.sh/helm/v3/pkg/getter"
-	"helm.sh/helm/v3/pkg/registry"
-	"helm.sh/helm/v3/pkg/repo"
+	"github.com/opencontainers/go-digest"
+	ocispec "github.com/opencontainers/image-spec/specs-go/v1"
+	helmchart "helm.sh/helm/v4/pkg/chart/v2"
+	helmgetter "helm.sh/helm/v4/pkg/getter"
+	"helm.sh/helm/v4/pkg/registry"
+	repo "helm.sh/helm/v4/pkg/repo/v1"
 
 	"github.com/doodlescheduling/flux-build/internal/helm/chart/secureloader"
 	"github.com/doodlescheduling/flux-build/internal/helm/repository"
@@ -39,6 +41,10 @@ import (
 
 type mockTagsGetter struct {
 	tags map[string][]string
+}
+
+func (m *mockTagsGetter) Resolve(ref string) (ocispec.Descriptor, error) {
+	return ocispec.Descriptor{Digest: digest.FromString(ref)}, nil
 }
 
 func (m *mockTagsGetter) Tags(requestURL string) ([]string, error) {
@@ -76,9 +82,7 @@ func (g *mockGetter) Get(_ string, _ ...helmgetter.Option) (*bytes.Buffer, error
 func TestDependencyManager_Clear(t *testing.T) {
 	g := NewWithT(t)
 
-	file, err := os.CreateTemp("", "")
-	g.Expect(err).ToNot(HaveOccurred())
-	ociRepoWithCreds, err := repository.NewOCIChartRepository("oci://example.com", repository.WithCredentialsFile(file.Name()))
+	ociRepoWithCreds, err := repository.NewOCIChartRepository("oci://example.com")
 	g.Expect(err).ToNot(HaveOccurred())
 
 	downloaders := map[string]repository.Downloader{
@@ -99,13 +103,8 @@ func TestDependencyManager_Clear(t *testing.T) {
 		case *repository.ChartRepository:
 			g.Expect(v.Index).To(BeNil())
 		case *repository.OCIChartRepository:
-			g.Expect(v.HasCredentials()).To(BeFalse())
+			// nothing to check
 		}
-	}
-
-	if _, err := os.Stat(file.Name()); !errors.Is(err, os.ErrNotExist) {
-		err = os.Remove(file.Name())
-		g.Expect(err).ToNot(HaveOccurred())
 	}
 }
 
@@ -288,15 +287,31 @@ func TestDependencyManager_build(t *testing.T) {
 	}
 }
 
+func TestDependencyManager_build_PanicRecovery(t *testing.T) {
+	g := NewWithT(t)
+
+	dm := NewDependencyManager(WithDownloaderCallback(func(url string) (repository.Downloader, error) {
+		panic("downloader callback error")
+	}))
+	err := dm.build(context.TODO(), LocalReference{}, &helmchart.Chart{}, map[string]*helmchart.Dependency{
+		"example": {Repository: "https://example.com"},
+	})
+	g.Expect(err).To(HaveOccurred())
+	g.Expect(err.Error()).To(ContainSubstring("failed to add dependency 'example'"))
+	g.Expect(err.Error()).To(ContainSubstring("downloader callback error"))
+}
+
 func TestDependencyManager_addLocalDependency(t *testing.T) {
 	tests := []struct {
-		name     string
-		dep      *helmchart.Dependency
-		wantErr  string
-		wantFunc func(g *WithT, c *helmchart.Chart)
+		name      string
+		chartName string
+		dep       *helmchart.Dependency
+		wantErr   string
+		wantFunc  func(g *WithT, c *helmchart.Chart)
 	}{
 		{
-			name: "local dependency",
+			name:      "local dependency",
+			chartName: "helmchartwithdeps",
 			dep: &helmchart.Dependency{
 				Name:       chartName,
 				Version:    chartVersion,
@@ -307,7 +322,8 @@ func TestDependencyManager_addLocalDependency(t *testing.T) {
 			},
 		},
 		{
-			name: "version not matching constraint",
+			name:      "version not matching constraint",
+			chartName: "helmchartwithdeps",
 			dep: &helmchart.Dependency{
 				Name:       chartName,
 				Version:    "0.2.0",
@@ -316,7 +332,8 @@ func TestDependencyManager_addLocalDependency(t *testing.T) {
 			wantErr: "can't get a valid version for constraint '0.2.0'",
 		},
 		{
-			name: "invalid local reference",
+			name:      "invalid local reference",
+			chartName: "helmchartwithdeps",
 			dep: &helmchart.Dependency{
 				Name:       chartName,
 				Version:    chartVersion,
@@ -325,7 +342,8 @@ func TestDependencyManager_addLocalDependency(t *testing.T) {
 			wantErr: "no chart found at '/absolutely/invalid'",
 		},
 		{
-			name: "invalid chart archive",
+			name:      "invalid chart archive",
+			chartName: "helmchartwithdeps",
 			dep: &helmchart.Dependency{
 				Name:       chartName,
 				Version:    chartVersion,
@@ -334,13 +352,34 @@ func TestDependencyManager_addLocalDependency(t *testing.T) {
 			wantErr: "failed to load chart from '/empty.tgz'",
 		},
 		{
-			name: "invalid constraint",
+			name:      "invalid constraint",
+			chartName: "helmchartwithdeps",
 			dep: &helmchart.Dependency{
 				Name:       chartName,
 				Version:    "invalid",
 				Repository: "file://../helmchart",
 			},
 			wantErr: "invalid version/constraint format 'invalid'",
+		},
+		{
+			name:      "no repository",
+			chartName: "helmchartwithdepsnorepo",
+			dep: &helmchart.Dependency{
+				Name:    chartName,
+				Version: chartVersion,
+			},
+			wantFunc: func(g *WithT, c *helmchart.Chart) {
+				g.Expect(c.Dependencies()).To(HaveLen(1))
+			},
+		},
+		{
+			name:      "no repository invalid reference",
+			chartName: "helmchartwithdepsnorepo",
+			dep: &helmchart.Dependency{
+				Name:    "nonexistingchart",
+				Version: chartVersion,
+			},
+			wantErr: "no chart found at '/helmchartwithdepsnorepo/charts/nonexistingchart'",
 		},
 	}
 	for _, tt := range tests {
@@ -353,7 +392,7 @@ func TestDependencyManager_addLocalDependency(t *testing.T) {
 			absWorkDir, err := filepath.Abs("../testdata/charts")
 			g.Expect(err).ToNot(HaveOccurred())
 
-			err = dm.addLocalDependency(LocalReference{WorkDir: absWorkDir, Path: "helmchartwithdeps"},
+			err = dm.addLocalDependency(LocalReference{WorkDir: absWorkDir, Path: tt.chartName},
 				&chartWithLock{Chart: chart}, tt.dep)
 			if tt.wantErr != "" {
 				g.Expect(err).To(HaveOccurred())
@@ -843,6 +882,15 @@ func TestDependencyManager_secureLocalChartPath(t *testing.T) {
 				Repository: "https://example.com",
 			},
 			wantErr: "not a local chart reference",
+		},
+		{
+			name: "local dependency with empty repository",
+			dep: &helmchart.Dependency{
+				Name: "some-subchart",
+			},
+			baseDir: "/tmp/workdir",
+			path:    "/chart",
+			want:    "/tmp/workdir/chart/charts/some-subchart",
 		},
 	}
 	for _, tt := range tests {

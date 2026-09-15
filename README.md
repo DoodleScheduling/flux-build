@@ -2,7 +2,6 @@
 
 [![release](https://img.shields.io/github/release/DoodleScheduling/flux-build/all.svg)](https://github.com/DoodleScheduling/flux-build/releases)
 [![release](https://github.com/doodlescheduling/flux-build/actions/workflows/release.yaml/badge.svg)](https://github.com/doodlescheduling/flux-build/actions/workflows/release.yaml)
-[![report](https://goreportcard.com/badge/github.com/DoodleScheduling/flux-build)](https://goreportcard.com/report/github.com/DoodleScheduling/flux-build)
 [![OpenSSF Scorecard](https://api.securityscorecards.dev/projects/github.com/DoodleScheduling/flux-build/badge)](https://api.securityscorecards.dev/projects/github.com/DoodleScheduling/flux-build)
 [![Coverage Status](https://coveralls.io/repos/github/DoodleScheduling/flux-build/badge.svg?branch=master)](https://coveralls.io/github/DoodleScheduling/flux-build?branch=master)
 [![license](https://img.shields.io/github/license/DoodleScheduling/flux-build.svg)](https://github.com/DoodleScheduling/flux-build/blob/master/LICENSE)
@@ -186,6 +185,6 @@ Examples for this case are usually if a HelmRelease refers to v1.Secrets as valu
 ## License notice
 
 Many internal packages have been cloned from [source-controller](https://github.com/fluxcd/source-controller) and [helm-controller](https://github.com/fluxcd/helm-controller) to achive the same functionilty for this
-action as at controller runtime.
+app as at controller runtime.
 
 Please see upstream [license](https://github.com/fluxcd/source-controller/blob/main/LICENSE).

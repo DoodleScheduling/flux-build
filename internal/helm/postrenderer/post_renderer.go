@@ -19,22 +19,22 @@ package postrenderer
 import (
 	"bytes"
 
-	"helm.sh/helm/v3/pkg/postrender"
+	helmpostrenderer "helm.sh/helm/v4/pkg/postrenderer"
 )
 
 // combinedPostRenderer, a collection of Helm PostRenders which are
 // invoked in the order of insertion.
 type combinedPostRenderer struct {
-	renderers []postrender.PostRenderer
+	renderers []helmpostrenderer.PostRenderer
 }
 
 func NewCombinedPostRenderer() combinedPostRenderer {
 	return combinedPostRenderer{
-		renderers: make([]postrender.PostRenderer, 0),
+		renderers: make([]helmpostrenderer.PostRenderer, 0),
 	}
 }
 
-func (c *combinedPostRenderer) AddRenderer(renderer postrender.PostRenderer) {
+func (c *combinedPostRenderer) AddRenderer(renderer helmpostrenderer.PostRenderer) {
 	c.renderers = append(c.renderers, renderer)
 }
 
