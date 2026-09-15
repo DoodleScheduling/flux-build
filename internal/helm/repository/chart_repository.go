@@ -40,9 +40,9 @@ import (
 
 	"github.com/fluxcd/pkg/version"
 
-	"github.com/fluxcd/pkg/http/transport"
 	"github.com/doodlescheduling/flux-build/internal/helm"
 	"github.com/doodlescheduling/flux-build/internal/oci"
+	"github.com/fluxcd/pkg/http/transport"
 )
 
 var (

@@ -31,9 +31,9 @@ import (
 
 	"github.com/fluxcd/pkg/runtime/secrets"
 
-	sourcev1 "github.com/fluxcd/source-controller/api/v1"
 	"github.com/doodlescheduling/flux-build/internal/helm/registry"
 	soci "github.com/doodlescheduling/flux-build/internal/oci"
+	sourcev1 "github.com/fluxcd/source-controller/api/v1"
 )
 
 var ErrDeprecatedTLSConfig = errors.New("TLS configured in a deprecated manner")
