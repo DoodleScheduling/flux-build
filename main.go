@@ -36,11 +36,7 @@ type Config struct {
 }
 
 var (
-	config = &Config{
-		CacheDir: getDefaultCacheDir(),
-		Cache:    "inmemory",
-		Workers:  runtime.NumCPU(),
-	}
+	config = &Config{}
 )
 
 func getDefaultCacheDir() string {
@@ -79,6 +75,13 @@ func main() {
 	}
 
 	flag.Parse()
+	if config.Cache == "" {
+		config.Cache = "inmemory"
+	}
+
+	if config.CacheDir == "" {
+		config.CacheDir = getDefaultCacheDir()
+	}
 
 	if config.Workers < 1 {
 		config.Workers = runtime.NumCPU()
