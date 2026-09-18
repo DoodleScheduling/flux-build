@@ -14,7 +14,7 @@ require (
 	github.com/fluxcd/pkg/auth v0.56.0
 	github.com/fluxcd/pkg/http/transport v0.8.0
 	github.com/fluxcd/pkg/oci v0.69.0
-	github.com/fluxcd/pkg/runtime v0.111.0
+	github.com/fluxcd/pkg/runtime v0.112.0
 	github.com/fluxcd/pkg/version v0.16.0
 	github.com/fluxcd/source-controller v1.9.5
 	github.com/fluxcd/source-controller/api v1.9.5
