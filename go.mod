@@ -4,7 +4,7 @@ go 1.26.0
 
 require (
 	github.com/Masterminds/semver/v3 v3.5.0
-	github.com/alitto/pond/v2 v2.7.1
+	github.com/alitto/pond/v2 v2.7.2
 	github.com/cyphar/filepath-securejoin v0.7.0
 	github.com/docker/cli v29.8.2+incompatible
 	github.com/drone/envsubst v1.0.3
