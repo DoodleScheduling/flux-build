@@ -1,6 +1,8 @@
 package build
 
 import (
+	"fmt"
+
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"sigs.k8s.io/kustomize/api/resource"
 )
@@ -33,4 +35,8 @@ type ref struct {
 	schema.GroupKind
 	Name      string
 	Namespace string
+}
+
+func (r ref) String() string {
+	return fmt.Sprintf("%s %s/%s", r.Group, r.Namespace, r.Name)
 }
