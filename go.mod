@@ -1,6 +1,6 @@
 module github.com/doodlescheduling/flux-build
 
-go 1.26.0
+go 1.27.0
 
 require (
 	github.com/Masterminds/semver/v3 v3.5.0
@@ -9,7 +9,7 @@ require (
 	github.com/docker/cli v29.9.1+incompatible
 	github.com/drone/envsubst v1.0.3
 	github.com/fluxcd/helm-controller/api v1.6.5
-	github.com/fluxcd/pkg/apis/kustomize v1.21.0
+	github.com/fluxcd/pkg/apis/kustomize v1.23.0
 	github.com/fluxcd/pkg/apis/meta v1.33.0
 	github.com/fluxcd/pkg/auth v0.60.0
 	github.com/fluxcd/pkg/http/transport v0.8.0
