@@ -13,7 +13,7 @@ import (
 	chartcache "github.com/doodlescheduling/flux-build/internal/helm/chart/cache"
 	"github.com/go-logr/logr"
 	"github.com/go-logr/zapr"
-	"github.com/sethvargo/go-envconfig"
+	"github.com/sethvargo/go-envconfig/v2"
 	flag "github.com/spf13/pflag"
 	"go.uber.org/zap"
 	helmcommon "helm.sh/helm/v4/pkg/chart/common"
